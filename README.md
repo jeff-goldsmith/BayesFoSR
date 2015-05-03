@@ -8,6 +8,11 @@ This repository contains code implementing various Bayesian approaches to functi
 ### Installation
 
 To install the latest version directly from Github, please use:
+
 `install.packages("devtools")
 devtools::install_github("jeff-goldsmith/BayesFoSR")`
+
+To install vignettes, please use: 
+
+`devtools::install_github("jeff-goldsmith/BayesFoSR", build_vignettes=TRUE)`
 
