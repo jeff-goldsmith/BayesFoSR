@@ -1,18 +1,18 @@
-`BayesFoSR`
+BayesFoSR
 ===============
 
-This repository contains code implementing various Bayesian approaches to function-on-scalar regression. The primary function is `bayes_fosr`, which calls other functions depending on model structure and user-selected options.
+This repository contains code implementing some Bayesian approaches to function-on-scalar regression. The primary function is `bayes_fosr`, which calls other functions depending on model structure and user-selected options.
 
 ===============
 
 ### Installation
 
 To install the latest version directly from Github, please use:
-
-`install.packages("devtools")
-devtools::install_github("jeff-goldsmith/BayesFoSR")`
+<pre><code>install.packages("devtools")
+devtools::install_github("jeff-goldsmith/BayesFoSR")
+</code></pre>
 
 To install vignettes, please use: 
 
-`devtools::install_github("jeff-goldsmith/BayesFoSR", build_vignettes=TRUE)`
-
+<pre><code>devtools::install_github("jeff-goldsmith/BayesFoSR", build_vignettes=TRUE)
+</code></pre>
