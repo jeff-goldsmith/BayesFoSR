@@ -1,0 +1,195 @@
+#' Cross-sectional FoSR using a Gibbs sampler and Wishart prior
+#' 
+#' Fitting function for function-on-scalar regression for cross-sectional data.
+#' This function estimates model parameters using a Gibbs sampler and estimates
+#' the residual covariance surface using a Wishart prior.
+#' 
+#' @param formula a formula indicating the structure of the proposed model. 
+#' @param Kt number of spline basis functions used to estimate coefficient functions
+#' @param data an optional data frame, list or environment containing the 
+#' variables in the model. If not found in data, the variables are taken from 
+#' environment(formula), typically the environment from which the function is 
+#' called.
+#' @param N.iter number of iterations used in the Gibbs sampler
+#' @param N.burn number of iterations discarded as burn-in
+#' @param alpha tuning parameter balancing second-derivative penalty and
+#' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' 
+#' @references
+#' Goldsmith, J., Kitago, T. (Under Review).
+#' Assessing Systematic Effects of Stroke on Motor Control using Hierarchical 
+#' Function-on-Scalar Regression.
+#' 
+#' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
+#' @importFrom splines bs
+#' @importFrom MCMCpack riwish
+#' @export
+#' 
+gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1){
+
+  # not used now but may need this later
+  call <- match.call()
+  
+  tf <- terms.formula(formula, specials = "re")
+  trmstrings <- attr(tf, "term.labels")
+  specials <- attr(tf, "specials")    # if there are no random effects this will be NULL
+  where.re <-specials$re - 1
+  
+  # gets matrix of fixed and random effects
+  if(length(where.re)!=0){
+    mf_fixed <- model.frame(tf[-where.re], data = data)
+    formula = tf[-where.re]
+    
+    # get random effects matrix
+    responsename <- attr(tf, "variables")[2][[1]]
+    REs = eval(parse(text=attr(tf[where.re], "term.labels")))
+    
+    # set up dataframe if data = NULL
+    formula2 <- paste(responsename, "~", REs[[1]],sep = "")
+    newfrml <- paste(responsename, "~", REs[[2]],sep = "")
+    newtrmstrings <- attr(tf[-where.re], "term.labels")
+    
+    formula2 <- formula(paste(c(formula2, newtrmstrings), collapse = "+"))
+    newfrml <- formula(paste(c(newfrml, newtrmstrings), collapse = "+"))
+    mf <- model.frame(formula2, data = data)
+    
+    # creates the Z matrix. get rid of $zt if you want a list with more stuff.
+    if(length(data)==0){Z = lme4::mkReTrms(lme4::findbars(newfrml),fr=mf)$Zt
+    }else
+    {Z = lme4::mkReTrms(lme4::findbars(newfrml),fr=data)$Zt}
+    
+    
+  } else {
+    mf_fixed <- model.frame(tf, data = data)
+  }
+  mt_fixed <- attr(mf_fixed, "terms")
+  
+  # get response (Y)
+  Y <- model.response(mf_fixed, "numeric")
+  
+  # x is a matrix of fixed effects
+  # automatically adds in intercept
+  X <- model.matrix(mt_fixed, mf_fixed, contrasts)
+  
+  set.seed(1)
+  
+  I = dim(Y)[1]
+
+  ## fixed effect design matrix
+  W.des = X
+
+  ## bspline basis and penalty matrix
+  D = dim(Y)[2]
+  Theta = bs(1:D, df=Kt, intercept=TRUE, degree=3)
+
+  diff0 = diag(1, D, D)
+  diff2 = matrix(rep(c(1,-2,1, rep(0, D-2)), D-2)[1:((D-2)*D)], D-2, D, byrow = TRUE)
+  P0 = t(Theta) %*% t(diff0) %*% diff0 %*% Theta
+  P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
+  P.mat = alpha * P0 + (1-alpha) * P2
+
+  ## hyper parameters for inverse gaussian and inverse wishart
+  A = .01
+  B = .01
+  Psi = diag(1, D, D)
+  v = 1
+
+  ## number of fixed effects
+  p = dim(W.des)[2]
+
+  ## data organization; these computations only need to be done once
+  Y.vec = as.vector(t(Y))
+  t.designmat.X = t(kronecker(W.des, Theta))
+  sig.X = kronecker(t(W.des) %*% W.des, t(Theta)%*% Theta)
+
+
+  ## matrices to store within-iteration estimates 
+  BW = array(NA, c(Kt, p, N.iter))
+  INV.SIG = array(NA, c(D, D, N.iter))
+      INV.SIG[,,1] = inv.sig = diag(1, D, D)
+  LAMBDA.BW = matrix(NA, nrow = N.iter, ncol = p)
+      LAMBDA.BW[1,] = lambda.bw = rep(A/B, p)
+  
+  y.post = array(NA, dim = c(I, D, (N.iter - N.burn)))
+
+  cat("Beginning Sampler \n")
+
+  for(i in 1:N.iter){
+
+    ###############################################################
+    ## update b-spline parameters for fixed effects
+    ###############################################################
+    
+    sigma = solve(t.designmat.X %*% kronecker(diag(1, I, I), inv.sig) %*% t(t.designmat.X) + 
+                  kronecker(diag(lambda.bw), P.mat ))
+    mu = sigma %*% (t.designmat.X %*% kronecker(diag(1, I, I), inv.sig) %*%  Y.vec)
+      
+    bw = matrix(mvrnorm(1, mu = mu, Sigma = sigma), nrow = Kt, ncol = p)
+
+    beta.cur = t(bw) %*% t(Theta)
+
+    ###############################################################
+    ## update inverse covariance matrix
+    ###############################################################
+
+    resid.cur = Y - W.des %*% beta.cur
+    inv.sig = solve(riwish(v + I, Psi + t(resid.cur) %*% resid.cur))
+
+    ###############################################################
+    ## update variance components
+    ###############################################################
+
+    ## lambda for beta's
+    for(term in 1:p){
+      a.post = A + Kt/2
+      b.post = B + 1/2 * bw[,term] %*% P.mat %*% bw[,term]
+      lambda.bw[term] = rgamma(1, a.post, b.post)
+    }
+      
+    ###############################################################
+    ## save this iteration's parameters
+    ###############################################################
+
+    BW[,,i] = as.matrix(bw)
+    
+    INV.SIG[,,i] = inv.sig
+    LAMBDA.BW[i,] = lambda.bw
+    
+    if(round(i %% (N.iter/10)) == 0) {cat(".")}
+    
+  }
+
+  ###############################################################
+  ## compute posteriors for this dataset
+  ###############################################################
+
+  ## main effects
+  beta.post = array(NA, dim = c(p, D, (N.iter - N.burn)))
+  for(n in 1:(N.iter - N.burn)){
+    beta.post[,,n] = t(BW[,, n + N.burn]) %*% t(Theta)
+  }
+  beta.pm = apply(beta.post, c(1,2), mean)
+  beta.LB = apply(beta.post, c(1,2), quantile, c(.025))
+  beta.UB = apply(beta.post, c(1,2), quantile, c(.975))
+
+
+  ## covariance matrix
+  sig.pm = solve(apply(INV.SIG, c(1,2), mean))
+  
+  ## export fitted values
+  fixef.pm = W.des %*% beta.pm
+  
+  ret = list(beta.pm, beta.LB, beta.UB, fixef.pm, sig.pm)
+  names(ret) = c("beta.pm", "beta.LB", "beta.UB", "fixef.pm", "sig.pm")
+
+  ret
+  
+}
+
+
+###############################################################
+###############################################################
+###############################################################
+###############################################################
+###############################################################
+###############################################################

@@ -1,0 +1,122 @@
+---
+title: "Cross-sectional Bayesian Function-on-Scalar Regression"
+author: "Jeff Goldsmith"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CrossSectional}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+This guide introduces tools used for cross-sectional function-on-scalar regression in the BayesFoSR package. We simulate and plot a dataset, fit a model using variational Bayes, and plot the result.
+
+## Simulated data
+
+We simulate 100 functional responses with correlated errors according to the function-on-scalar regression model. Three coefficient functions are used (a constant intercept, a sine curve, and a cosine curve), and scalar predictors are generated from a standard normal distribution. Correlated errors are introduced using functional principal components with two basis functions (a sine and cosine of different periods than the coefficient functions) and subject-specific loadings are generated from mean-zero normal distributions with variance 3 and 1. Finally, uncorrelated measurement error is added to all curve. The figure below shows this observed data.
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+
+library(BayesFoSR)
+library(ggplot2)
+library(MASS)
+
+###############################################################
+## set simulation design elements
+###############################################################
+
+I = 100
+p = 3
+D = 50
+grid = seq(0, 1, length = D)
+
+## coefficient functions
+beta.true = matrix(0, p, D)
+beta.true[1,] = sin(2*grid*pi)
+beta.true[2,] = cos(2*grid*pi)
+beta.true[3,] = 2
+
+## basis functions for correlated errors
+psi.true = matrix(NA, 2, D)
+psi.true[1,] = sin(4*grid*pi)
+psi.true[2,] = cos(4*grid*pi)
+lambda = c(3,1)
+
+## seed for reproducibility
+set.seed(100)
+
+## predictors and PC scores
+X = cbind(1,matrix(rnorm(I*(p-1)), I, (p-1)))
+C = mvrnorm(I, mu = rep(0, 2), diag(lambda))
+
+## fixed effects, PC effects, uncorrelated errors
+fixef = X%*%beta.true
+pcaef = C %*% psi.true
+error = matrix(rnorm(I*D), I, D)
+
+## response
+Yi.obs = fixef + pcaef + error
+```
+
+
+```{r, echo = FALSE, fig.align='center', fig.width=6}
+## observed data
+obs.data = cbind(as.vector(t(Yi.obs)), rep(1:I, each = D), rep(grid, I))
+obs.data = as.data.frame(obs.data)
+colnames(obs.data) = c("y", "curve", "grid")
+
+ggplot(obs.data, aes(x = grid, y = y, group = curve)) + geom_path(alpha = .3) +
+  theme_bw() + labs(x = "Grid", y = "Observed Data")
+```
+
+## Model Fitting
+
+Several options are available for fitting the function-on-scalar regression model:
+
+- Model parameters can be estimated using variational Bayes or a Gibbs sampler.  
+- The covariance structure for the correlated errors can be estimated using FPCA or a Wishart prior.
+
+Variational Bayes is a fast approximation to the true posterior, and often provides reasonable point estimates. However, the approximation requires assumptions regarding the posterior independence of model parameters and can lead to poor inference. The Gibbs sampler produces samples from the posterior, but is more computationally demanding; also, if parameters are correlated, mixing can be slow. 
+
+The Bayesian FPCA estimates a pre-specified number of components using a spline expansion for each, as well as the associated scores; this provides a parsimonious approach to estimating the covariance surface, but requires that the number of components is known in advance or explored as part of the modeling process. The Wishart prior is potentially more flexible and requires less user input, but is much less parsimonious particularly for dense grids.
+
+Below, we fit the function on scalar regression model using VB and FPCA for the covariance structure. Code for the Gibbs sampler is commented to save computation time and memory space.
+
+```{r, echo = TRUE, cache = TRUE}
+fit.vb = bayes_fosr(Yi.obs~0+X, Kt = 10, Kp = 2, est.method = "VB", cov.method = "FPCA")
+# fit.gibbs = bayes_fosr(Yi.obs~0+X, Kt = 10, Kp = 2, est.method = "Gibbs", cov.method = "FPCA")
+```
+
+## Model comparisons
+
+Below we plot the estimated coefficient functions from both estimation procedures and compare to the true coefficients.
+
+```{r, echo = FALSE, fig.align='center', fig.width=6}
+plot.dat = data.frame(est = c(as.vector(t(beta.true)), as.vector(t(fit.vb$beta.pm))),
+                      grid = rep(grid, p*2),
+                      curve = rep(1:(2*p), each = D),
+                      Method = rep(c("Truth", "VarBayes"), each = p*D))
+
+ggplot(plot.dat, aes(x = grid, y = est, group = curve, color = Method)) + geom_path() + 
+  theme_bw() + labs(x = "Grid", y = "Beta")
+```
+
+Next we plot the estimated FPCA basis functions from the VB algorithm and compare to the true basis functions. 
+
+```{r, echo = FALSE, fig.align='center', fig.width=6}
+plot.dat = data.frame(est = c(as.vector(t(psi.true)), as.vector(t(fit.vb$psi.pm))),
+                      grid = rep(grid, 2*2),
+                      curve = rep(1:(2*2), each = D),
+                      Method = rep(c("Truth", "VarBayes"), each = 2*D))
+
+ggplot(plot.dat, aes(x = grid, y = est, group = curve, color = Method)) + geom_path() + 
+  theme_bw() + labs(x = "Grid", y = "Beta")
+```
+
+
+<!-- ############################################ -->
+<!-- ############################################ -->
+<!-- ############################################ -->
+<!-- ############################################ -->
+<!-- ############################################ -->
+<!-- ############################################ -->
