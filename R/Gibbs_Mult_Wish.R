@@ -14,7 +14,17 @@
 #' @param N.burn number of iterations discarded as burn-in
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
-#' 
+#' @param Az hyperparameter for inverse gamma controlling variance of spline terms
+#' for subject-level effects
+#' @param Bz hyperparameter for inverse gamma controlling variance of spline terms
+#' for subject-level effects
+#' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param v hyperparameter for inverse Wishart prior on residual covariance
+#' @param seed seed value to start the sampler; ensures reproducibility
+#'  
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
 #' Assessing Systematic Effects of Stroke on Motor Control using Hierarchical 
@@ -25,7 +35,8 @@
 #' @importFrom MCMCpack riwish
 #' @export
 #' 
-gibbs_mult_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1){
+gibbs_mult_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1,
+                           Az = NULL, Bz = NULL, Aw = NULL, Bw = NULL, v = NULL, SEED = NULL){
 
   # not used now but may need this later
   call <- match.call()
@@ -71,7 +82,7 @@ gibbs_mult_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 100
   # automatically adds in intercept
   X <- model.matrix(mt_fixed, mf_fixed, contrasts)
   
-  set.seed(1)
+  if(!is.null(SEED)) { set.seed(SEED) }
   
   ## fixed and random effect design matrices
   W.des = X
@@ -108,40 +119,54 @@ gibbs_mult_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 100
   tWIW = t(WIk) %*% IIP %*% WIk
   tWI = t(WIk) %*% IIP
 
-
   ## initial estimation and hyperparameter choice
-  vec.bz = solve(kronecker(t(Z.des)%*% Z.des, t(Theta) %*% Theta)) %*% t(kronecker(Z.des, Theta)) %*% Y.vec
-  bz = matrix(vec.bz, nrow = Kt, ncol = I)
+  mu.q.BZ = matrix(NA, nrow = Kt, ncol = I)
+  for(subj in 1:length(unique(SUBJ))){
+    mu.q.BZ[,subj] = solve(kronecker(Ji[subj], t(Theta) %*% Theta)) %*% t(kronecker(rep(1, Ji[subj]), Theta)) %*% 
+      (as.vector(t(Y[which(SUBJ == unique(SUBJ)[subj]),])))
+    
+  }
+  vec.BZ = as.vector(mu.q.BZ)
   
-  w.temp = kronecker(t(Wi), diag(1, Kt, Kt))
-  vec.bw = solve(tWIW) %*% tWI %*% vec.bz
-  bw = matrix(vec.bw, Kt, p)
-
-  Yhat = as.matrix(Z.des %*% t(bz) %*% t(Theta))
-  varhat = var(as.vector(Y - Yhat))
-
-  Psi = diag(varhat*IJ, D, D)
-  v = IJ
+  vec.BW = solve(tWIW) %*% tWI %*% vec.BZ
+  mu.q.BW = matrix(vec.BW, Kt, p)
+  
+  Yhat = as.matrix(Z.des %*% t(mu.q.BZ) %*% t(Theta))
+  
+  if(is.null(v)){
+    fpca.temp = fpca.sc(Y = Y - Yhat, pve = .95, var = TRUE)
+    cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
+                                                       ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
+    cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
+    Psi = cov.hat * IJ
+  } else {
+    Psi = diag(v, D, D)
+  }
+  
+  v = ifelse(is.null(v), IJ, v)
   inv.sig = solve(Psi/v)
-
-  Az = I*Kt / 2
-  Bz = sum(diag((t(bz) - Wi %*% t(bw)) %*% P.mat %*% t(t(bz) - Wi %*% t(bw))))
   
-  Aw = Kt / 2
-  Bw = sapply(1:p, function(u) max(1, sum(diag( t(bw[,u]) %*% P.mat %*% (bw[,u])))))
-
+  Az = ifelse(is.null(Az), I*Kt/2, Az)
+  Bz = b.q.lambda.BZ = ifelse(is.null(Bz), .5*sum(diag((t(mu.q.BZ) - Wi %*% t(mu.q.BW)) %*% P.mat %*% t(t(mu.q.BZ) - Wi %*% t(mu.q.BW)))), Bz)
+  
+  Aw = ifelse(is.null(Aw), Kt/2, Aw)
+  if(is.null(Bw)){
+    Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, .5*sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
+  } else {
+    Bw = b.q.lambda.BW = rep(Bw, p)
+  }
 
   ## matrices to store within-iteration estimates 
   BW = array(NA, c(Kt, p, N.iter))
-      BW[,,1] = bw
+    BW[,,1] = bw = matrix(rnorm(Kt * p, 0, 10), Kt, p)
   BZ = array(NA, c(Kt, I, N.iter))
-      BZ[,,1] = bz
+    BZ[,,1] = bz = matrix(rnorm(Kt * I, 0, 10),  Kt, I)
   INV.SIG = array(NA, c(D, D, N.iter))
-      INV.SIG[,,1] = inv.sig 
+    INV.SIG[,,1] = inv.sig = diag(10, D, D)
   LAMBDA.BW = matrix(NA, nrow = N.iter, ncol = p)
-      LAMBDA.BW[1,] = lambda.bw = Aw/Bw
+    LAMBDA.BW[1,] = lambda.bw = runif(p, .1, 10)
   LAMBDA.BZ = rep(NA, N.iter)
-      LAMBDA.BZ[1] = lambda.ranef = Az/Bz
+    LAMBDA.BZ[1] = lambda.ranef = runif(1, .1, 10)
   
   y.post = array(NA, dim = c(IJ, D, (N.iter - N.burn)))
 

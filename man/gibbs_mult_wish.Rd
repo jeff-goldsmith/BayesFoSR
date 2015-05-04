@@ -5,7 +5,8 @@
 \title{Multilevel FoSR using a Gibbs sampler and Wishart prior}
 \usage{
 gibbs_mult_wish(formula, Kt = 5, data = NULL, N.iter = 5000,
-  N.burn = 1000, alpha = 0.1)
+  N.burn = 1000, alpha = 0.1, Az = NULL, Bz = NULL, Aw = NULL,
+  Bw = NULL, v = NULL, SEED = NULL)
 }
 \arguments{
 \item{formula}{a formula indicating the structure of the proposed model.}
@@ -23,6 +24,22 @@ called.}
 
 \item{alpha}{tuning parameter balancing second-derivative penalty and
 zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)}
+
+\item{Az}{hyperparameter for inverse gamma controlling variance of spline terms
+for subject-level effects}
+
+\item{Bz}{hyperparameter for inverse gamma controlling variance of spline terms
+for subject-level effects}
+
+\item{Aw}{hyperparameter for inverse gamma controlling variance of spline terms
+for population-level effects}
+
+\item{Bw}{hyperparameter for inverse gamma controlling variance of spline terms
+for population-level effects}
+
+\item{v}{hyperparameter for inverse Wishart prior on residual covariance}
+
+\item{seed}{seed value to start the sampler; ensures reproducibility}
 }
 \description{
 Fitting function for function-on-scalar regression for multilevel data.

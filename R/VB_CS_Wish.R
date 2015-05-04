@@ -12,6 +12,13 @@
 #' called.
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' @param min.iter minimum number of interations of VB algorithm
+#' @param max.iter maximum number of interations of VB algorithm
+#' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param v hyperparameter for inverse Wishart prior on residual covariance
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -22,7 +29,8 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1){
+vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1, min.iter = 10, max.iter = 50,
+                      Aw = NULL, Bw = NULL, v = NULL){
   
   # not used now but may need this later
   call <- match.call()
@@ -68,14 +76,14 @@ vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1){
   # automatically adds in intercept
   X <- model.matrix(mt_fixed, mf_fixed, contrasts)
   
-  
-  I = dim(Y)[1]
-  
   ## fixed effect design matrix
   W.des = X
   
-  ## bspline basis and penalty matrix
+  I = dim(Y)[1]
   D = dim(Y)[2]
+  p = dim(W.des)[2]
+
+  ## bspline basis and penalty matrix
   Theta = bs(1:D, df = Kt, intercept=TRUE, degree=3)
   
   diff0 = diag(1, D, D)
@@ -84,35 +92,43 @@ vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1){
   P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
   P.mat = alpha * P0 + (1-alpha) * P2
   
-  ## hyper parameters for inverse gamma
-  A = .01
-  B = .01
-  
-  ## number of fixed effects
-  p = dim(W.des)[2]
-  
   ## data organization; these computations only need to be done once
   Y.vec = as.vector(t(Y))
   t.designmat.X = t(kronecker(W.des, Theta))
   sig.X = kronecker(t(W.des) %*% W.des, t(Theta)%*% Theta)
   
-  ## matrices to to approximate paramater values
-  sigma.q.BW = diag(1, p * Kt)
-  mu.q.BW = matrix(0, nrow = Kt, ncol = p)  
+  ## initial estimation and hyperparameter choice
+  vec.BW = solve(kronecker(t(W.des)%*% W.des, t(Theta) %*% Theta)) %*% t(kronecker(W.des, Theta)) %*% Y.vec
+  mu.q.BW = matrix(vec.BW, Kt, p)
   
-  b.q.lambda.BW = rep(1, p)
+  Yhat = as.matrix(W.des %*% t(mu.q.BW) %*% t(Theta))
   
-  Psi = diag(1*I, D, D)
-  v = I
+  if(is.null(v)){
+    fpca.temp = fpca.sc(Y = Y - Yhat, pve = .95, var = TRUE)
+    cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
+                                                       ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
+    cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
+    Psi = cov.hat * IJ
+  } else {
+    Psi = diag(v, D, D)
+  }
+  
+  v = ifelse(is.null(v), IJ, v)
   inv.sig = solve(Psi/v)
+  
+  Aw = ifelse(is.null(Aw), Kt/2, Aw)
+  if(is.null(Bw)){
+    Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, .5*sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
+  } else {
+    Bw = b.q.lambda.BW = rep(Bw, p)
+  }
   
   lpxq=c(0,1)
   j=2
   
   cat("Beginning Algorithm \n")
   
-  #  while(j<4 | (lpxq[j]-lpxq[j-1])>1.0E-1){
-  while(j<11){
+  while((j < (min.iter + 2) | (lpxq[j]-lpxq[j-1])>1.0E-1) & (j < max.iter)){
     
     ###############################################################
     ## update b-spline parameters for fixed effects

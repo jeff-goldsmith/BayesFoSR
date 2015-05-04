@@ -4,7 +4,8 @@
 \alias{vb_cs_wish}
 \title{Cross-sectional FoSR using Variational Bayes and Wishart prior}
 \usage{
-vb_cs_wish(formula, data = NULL, Kt = 5, alpha = 0.1)
+vb_cs_wish(formula, data = NULL, Kt = 5, alpha = 0.1, min.iter = 10,
+  max.iter = 50, Aw = NULL, Bw = NULL, v = NULL)
 }
 \arguments{
 \item{formula}{a formula indicating the structure of the proposed model.}
@@ -18,6 +19,18 @@ called.}
 
 \item{alpha}{tuning parameter balancing second-derivative penalty and
 zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)}
+
+\item{min.iter}{minimum number of interations of VB algorithm}
+
+\item{max.iter}{maximum number of interations of VB algorithm}
+
+\item{Aw}{hyperparameter for inverse gamma controlling variance of spline terms
+for population-level effects}
+
+\item{Bw}{hyperparameter for inverse gamma controlling variance of spline terms
+for population-level effects}
+
+\item{v}{hyperparameter for inverse Wishart prior on residual covariance}
 }
 \description{
 Fitting function for function-on-scalar regression for cross-sectional data.

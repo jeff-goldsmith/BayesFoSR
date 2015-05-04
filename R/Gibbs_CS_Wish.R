@@ -14,6 +14,11 @@
 #' @param N.burn number of iterations discarded as burn-in
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param v hyperparameter for inverse Wishart prior on residual covariance
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -25,7 +30,8 @@
 #' @importFrom MCMCpack riwish
 #' @export
 #' 
-gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1){
+gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1, 
+                         min.iter = 10, max.iter = 50, Aw = NULL, Bw = NULL, v = NULL){
 
   # not used now but may need this later
   call <- match.call()
@@ -71,15 +77,16 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
   # automatically adds in intercept
   X <- model.matrix(mt_fixed, mf_fixed, contrasts)
   
-  set.seed(1)
+  if(!is.null(SEED)) { set.seed(SEED) }
   
-  I = dim(Y)[1]
-
   ## fixed effect design matrix
   W.des = X
-
-  ## bspline basis and penalty matrix
+    
+  I = dim(Y)[1]
+  p = dim(W.des)[2]
   D = dim(Y)[2]
+  
+  ## bspline basis and penalty matrix
   Theta = bs(1:D, df=Kt, intercept=TRUE, degree=3)
 
   diff0 = diag(1, D, D)
@@ -88,27 +95,44 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
   P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
   P.mat = alpha * P0 + (1-alpha) * P2
 
-  ## hyper parameters for inverse gaussian and inverse wishart
-  A = .01
-  B = .01
-  Psi = diag(1, D, D)
-  v = 1
-
-  ## number of fixed effects
-  p = dim(W.des)[2]
-
   ## data organization; these computations only need to be done once
   Y.vec = as.vector(t(Y))
   t.designmat.X = t(kronecker(W.des, Theta))
   sig.X = kronecker(t(W.des) %*% W.des, t(Theta)%*% Theta)
 
-
+  ## initial estimation and hyperparameter choice
+  vec.BW = solve(kronecker(t(W.des)%*% W.des, t(Theta) %*% Theta)) %*% t(kronecker(W.des, Theta)) %*% Y.vec
+  mu.q.BW = matrix(vec.BW, Kt, p)
+  
+  Yhat = as.matrix(W.des %*% t(mu.q.BW) %*% t(Theta))
+  
+  if(is.null(v)){
+    fpca.temp = fpca.sc(Y = Y - Yhat, pve = .95, var = TRUE)
+    cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
+                                                       ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
+    cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
+    Psi = cov.hat * IJ
+  } else {
+    Psi = diag(v, D, D)
+  }
+  
+  v = ifelse(is.null(v), IJ, v)
+  inv.sig = solve(Psi/v)
+  
+  Aw = ifelse(is.null(Aw), Kt/2, Aw)
+  if(is.null(Bw)){
+    Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, .5*sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
+  } else {
+    Bw = b.q.lambda.BW = rep(Bw, p)
+  }
+  
   ## matrices to store within-iteration estimates 
   BW = array(NA, c(Kt, p, N.iter))
+    BW[,,1] = bw = matrix(rnorm(Kt * p, 0, 10), Kt, p)
   INV.SIG = array(NA, c(D, D, N.iter))
-      INV.SIG[,,1] = inv.sig = diag(1, D, D)
+    INV.SIG[,,1] = inv.sig = diag(10, D, D)
   LAMBDA.BW = matrix(NA, nrow = N.iter, ncol = p)
-      LAMBDA.BW[1,] = lambda.bw = rep(A/B, p)
+    LAMBDA.BW[1,] = lambda.bw = runif(p, .1, 10)
   
   y.post = array(NA, dim = c(I, D, (N.iter - N.burn)))
 

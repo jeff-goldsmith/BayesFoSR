@@ -2,7 +2,8 @@
 #' 
 #' Fitting function for function-on-scalar regression for cross-sectional data.
 #' This function estimates model parameters using VB and estimates
-#' the residual covariance surface using a Wishart prior.
+#' the residual covariance surface using a Wishart prior. If prior hyperparameters
+#' are \code{NULL} they are estimated using the data.
 #' 
 #' @param formula a formula indicating the structure of the proposed model. 
 #' @param Kt number of spline basis functions used to estimate coefficient functions
@@ -12,6 +13,17 @@
 #' called.
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' @param min.iter minimum number of interations of VB algorithm
+#' @param max.iter maximum number of interations of VB algorithm
+#' @param Az hyperparameter for inverse gamma controlling variance of spline terms
+#' for subject-level effects
+#' @param Bz hyperparameter for inverse gamma controlling variance of spline terms
+#' for subject-level effects
+#' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param v hyperparameter for inverse Wishart prior on residual covariance
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -22,7 +34,8 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1){
+vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1, min.iter = 10, max.iter = 50,
+                        Az = NULL, Bz = NULL, Aw = NULL, Bw = NULL, v = NULL){
 
   # not used now but may need this later
   call <- match.call()
@@ -103,7 +116,6 @@ vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1){
   tWIW = t(WIk) %*% IIP %*% WIk
   tWI = t(WIk) %*% IIP
 
-
   ## initial estimation and hyperparameter choice
   mu.q.BZ = matrix(NA, nrow = Kt, ncol = I)
   for(subj in 1:length(unique(SUBJ))){
@@ -117,31 +129,38 @@ vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1){
   mu.q.BW = matrix(vec.BW, Kt, p)
 
   Yhat = as.matrix(Z.des %*% t(mu.q.BZ) %*% t(Theta))
-  varhat = var(as.vector(Y - Yhat))
 
-  Psi = diag(varhat*IJ, D, D)
-  v = IJ
-  inv.sig = solve(Psi/v)
-
-  Az = I*Kt / 2
-  Bz = b.q.lambda.BZ = sum(diag((t(mu.q.BZ) - Wi %*% t(mu.q.BW)) %*% P.mat %*% t(t(mu.q.BZ) - Wi %*% t(mu.q.BW))))
+  if(is.null(v)){
+    fpca.temp = fpca.sc(Y = Y - Yhat, pve = .95, var = TRUE)
+    cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
+                                                       ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
+    cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
+    Psi = cov.hat * IJ
+  } else {
+    Psi = diag(v, D, D)
+  }
   
-  Aw = Kt / 2
-  Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
-
+  v = ifelse(is.null(v), IJ, v)
+  inv.sig = solve(Psi/v)
+  
+  Az = ifelse(is.null(Az), I*Kt/2, Az)
+  Bz = b.q.lambda.BZ = ifelse(is.null(Bz), .5*sum(diag((t(mu.q.BZ) - Wi %*% t(mu.q.BW)) %*% P.mat %*% t(t(mu.q.BZ) - Wi %*% t(mu.q.BW)))), Bz)
+  
+  Aw = ifelse(is.null(Aw), Kt/2, Aw)
+  if(is.null(Bw)){
+    Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, .5*sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
+  } else {
+    Bw = b.q.lambda.BW = rep(Bw, p)
+  }
 
   sigma.q.BZ = vector("list", I)
-  for(k in 1:p){
-    sigma.q.BZ[[k]] = diag(1, Kt)
-  }
 
   lpxq=c(0,1)
   j=2
 
   cat("Beginning Algorithm \n")
 
-#  while(j<4 | (lpxq[j]-lpxq[j-1])>1.0E-1){
-  while(j<11){
+  while((j < (min.iter + 2) | (lpxq[j]-lpxq[j-1])>1.0E-1) & (j < max.iter)){
   
     ###############################################################
     ## update b-spline parameters for subject random effects
