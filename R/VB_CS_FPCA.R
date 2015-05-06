@@ -21,7 +21,7 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
+vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   
   # not used now but may need this later
   call <- match.call()
@@ -65,7 +65,7 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
   
   # x is a matrix of fixed effects
   # automatically adds in intercept
-  X <- model.matrix(mt_fixed, mf_fixed, contrasts)
+  W.des = X <- model.matrix(mt_fixed, mf_fixed, contrasts)
   
   ## subject covariates
   I = dim(X)[1]
@@ -75,12 +75,15 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
   ## bspline basis and penalty matrix
   Theta = bs(1:D, df=Kt, intercept=TRUE, degree=3)
   
-  ## hyper parameters for inverse gaussians, bernoulli
-  v0 = .001
-  v1 = 100
+  diff0 = diag(1, D, D)
+  diff2 = matrix(rep(c(1,-2,1, rep(0, D-2)), D-2)[1:((D-2)*D)], D-2, D, byrow = TRUE)
+  P0 = t(Theta) %*% t(diff0) %*% diff0 %*% Theta
+  P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
+  P.mat = alpha * P0 + (1-alpha) * P2
+  
+  ## hyper parameters for inverse gaussians
   A = .5
   B = .5
-  theta = .1
   
   ## matrices to to approximate paramater values
   sigma.q.BW = vector("list", p)
@@ -88,9 +91,6 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
     sigma.q.BW[[k]] = diag(1, Kt)
   }
   mu.q.BW = matrix(0, nrow = Kt, ncol = p)  
-  
-  mu.q.gamma = rep(1, p)  
-  mu.q.dinv = kronecker(diag((1-mu.q.gamma)/v0 + mu.q.gamma/v1), diag(1, Kt, Kt))
   
   sigma.q.Bpsi = vector("list", Kp)
   for(k in 1:Kp){
@@ -104,6 +104,7 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
   }
   mu.q.C = matrix(rnorm(I*Kp, 0, .01), I, Kp)
   
+  b.q.lambda.BW = rep(1, p)
   b.q.lambda.Bpsi = rep(1, Kp)
   b.q.sigma.me = 1
   
@@ -112,14 +113,12 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
   obspts.vec = !is.na(Y.vec)
   Y.vec = Y.vec[obspts.vec]
   J = sum(obspts.vec)
-  
   t.designmat.X = t(kronecker(X, Theta)[obspts.vec,])
-  Xstar = vector("list", length = I)
   XtX = matrix(0, Kt*p, Kt*p)
   sumXtX = matrix(0, Kt*p, Kt*p)
   for(i in 1:I){
     obs.points = which(!is.na(Y[i, ]))
-    X.cur = Xstar[[i]] = kronecker(matrix(X[i,], nrow = 1, ncol = p), Theta)[obs.points,]
+    X.cur = kronecker(matrix(X[i,], nrow = 1, ncol = p), Theta)[obs.points,]
     XtX = XtX + crossprod(X.cur)
     sumXtX = sumXtX + t(X.cur)%*% X.cur
   }  
@@ -128,7 +127,13 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
   fixef.cur = matrix(0, nrow = I, ncol = D)
   pcaef.cur = matrix(0, I, D)
 
-  for(i in 1:20){
+  lpxq=c(0,1)
+  j=2
+  
+  cat("Beginning Algorithm \n")
+  
+  #  while(j<4 | (lpxq[j]-lpxq[j-1])>1.0E-1){
+  while(j<11){
     
     ###############################################################
     ## update regression coefficients
@@ -136,17 +141,12 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
   
     mean.cur = as.vector(t(pcaef.cur))[obspts.vec]
     
-    sigma.q.beta = solve(as.numeric((A + I*D/2)/(b.q.sigma.me)) * XtX + mu.q.dinv)
+    sigma.q.beta = solve(as.numeric((A + I*D/2)/(b.q.sigma.me)) * XtX + kronecker(diag((A+Kt/2)/b.q.lambda.BW), P.mat ))
     mu.q.beta = matrix(sigma.q.beta %*% (as.numeric((A + I*D/2)/(b.q.sigma.me)) * t.designmat.X %*% (Y.vec - mean.cur)), nrow = Kt, ncol = p)
   
     beta.cur = t(mu.q.beta) %*% t(Theta)
     fixef.cur = as.matrix(X %*% beta.cur)
     
-    ###############################################################
-    ## update gammas -- not in this version!
-    ###############################################################
-  
-
     ###############################################################
     ## update b-spline parameters for PC basis functions
     ###############################################################
@@ -155,7 +155,7 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
     designmat = kronecker(mu.q.C, Theta)[obspts.vec,]
     
     sigma.q.Bpsi = solve( 
-      kronecker(diag(1, Kt, Kt), diag((A+Kt/2)/b.q.lambda.Bpsi)) + 
+      kronecker(diag((A+Kt/2)/b.q.lambda.Bpsi), P.mat  ) + 
         as.numeric((A + J/2)/(b.q.sigma.me)) * f_sum(mu.q.c = mu.q.C, sig.q.c = sigma.q.C, theta = t(Theta), obspts.mat = !is.na(Y))
     )
     mu.q.Bpsi = matrix(((A + J/2)/(b.q.sigma.me)) * sigma.q.Bpsi %*% f_sum2(y = Y, fixef = fixef.cur, mu.q.c = mu.q.C, kt = Kt, theta = t(Theta)), nrow = Kt, ncol = Kp)
@@ -191,11 +191,28 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2){
                                         sum(diag(sumXtX %*% sigma.q.beta)) + 
                                         f_sum4(mu.q.c= mu.q.C, sig.q.c = sigma.q.C, mu.q.bpsi = mu.q.Bpsi, sig.q.bphi = sigma.q.Bpsi, theta= Theta, obspts.mat = !is.na(Y))) )
         
+    ## lambda for fixed effects
+    for(term in 1:dim(W.des)[2]){
+      b.q.lambda.BW[term] = B + .5 * (t(mu.q.BW[,term]) %*% P.mat %*% mu.q.BW[,term] + 
+                                        sum(diag(P.mat %*% sigma.q.beta[(Kt*(term-1)+1):(Kt*term),(Kt*(term-1)+1):(Kt*term)])))
+    }
+    
     ## lambda for FPCA basis functions
     for(K in 1:Kp){
-      b.q.lambda.Bpsi[K] = B + .5 * (t(mu.q.Bpsi[,K]) %*% diag(1, Kt, Kt) %*% mu.q.Bpsi[,K] + 
-                                       sum(diag(diag(1, Kt, Kt) %*% sigma.q.Bpsi[(Kt*(K-1)+1):(Kt*K),(Kt*(K-1)+1):(Kt*K)])))
+      b.q.lambda.Bpsi[K] = B + .5 * (t(mu.q.Bpsi[,K]) %*% P.mat %*% mu.q.Bpsi[,K] + 
+                                       sum(diag(P.mat %*% sigma.q.Bpsi[(Kt*(K-1)+1):(Kt*K),(Kt*(K-1)+1):(Kt*K)])))
     }
+    
+    ###############################################################
+    ## lower bound
+    ###############################################################
+    
+    curlpxq = 10
+    lpxq = c(lpxq, curlpxq)
+    j=j+1
+    
+    cat(".")
+    
   }
 
   ## export fitted values

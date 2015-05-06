@@ -3,7 +3,7 @@ Title: Bayesian Function-on-Scalar Regression
 Version: 0.1
 Authors@R: "Jeff Goldsmith <ajg2202@cumc.columbia.edu> [aut, cre]"
 Description: What the package does (paragraph)
-Depends: R (>= 3.1.3)
+Depends: R (>= 3.0.1)
 License: GPL (>= 2)
 LazyData: true
 Suggests: knitr

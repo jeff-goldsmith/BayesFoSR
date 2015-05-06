@@ -129,7 +129,6 @@ vb_mult_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
 
   ## data organization; these computations only need to be done once
   Y.vec = as.vector(t(Y))
-
   t.designmat.X = t(kronecker(W.des, Theta))
   sig.X = kronecker(t(W.des) %*% W.des, t(Theta)%*% Theta)
 
@@ -203,7 +202,7 @@ vb_mult_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
       mu.q.C[subj,] = ((A + IJ*D/2)/(b.q.sigma.me)) * sigma.q.C[[subj]] %*% as.matrix(psi.cur) %*%  (Y[subj,] - fixef.cur[subj,] - ranef.cur[subj,]  )
     }
 
-	pcaef.cur =  as.matrix(mu.q.C %*% psi.cur)
+  	pcaef.cur =  as.matrix(mu.q.C %*% psi.cur)
  
     ###############################################################
     ## update variance components
