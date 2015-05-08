@@ -27,6 +27,7 @@
 #' 
 #' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
 #' @importFrom splines bs
+#' @importFrom refund fpca.sc
 #' @export
 #' 
 vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1, min.iter = 10, max.iter = 50,
@@ -108,12 +109,12 @@ vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1, min.iter = 10, max.i
     cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
                                                        ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
     cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
-    Psi = cov.hat * IJ
+    Psi = cov.hat * I
   } else {
     Psi = diag(v, D, D)
   }
   
-  v = ifelse(is.null(v), IJ, v)
+  v = ifelse(is.null(v), I, v)
   inv.sig = solve(Psi/v)
   
   Aw = ifelse(is.null(Aw), Kt/2, Aw)
@@ -134,9 +135,9 @@ vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1, min.iter = 10, max.i
     ## update b-spline parameters for fixed effects
     ###############################################################
     
-    sigma.q.BW = solve(t.designmat.X %*% kronecker(diag(1, I, I), inv.sig) %*% t(t.designmat.X) +
-                         kronecker(diag((A+Kt/2)/b.q.lambda.BW), P.mat ))
-    mu.q.BW = matrix( sigma.q.BW %*% (t.designmat.X %*% kronecker(diag(1, I, I), inv.sig) %*%  Y.vec), nrow = Kt, ncol = p)
+    sigma.q.BW = solve( Xt_siginv_X(tx = t.designmat.X, siginv = inv.sig) +
+                         kronecker(diag((Aw+Kt/2)/b.q.lambda.BW), P.mat ))
+    mu.q.BW = matrix( sigma.q.BW %*% Xt_siginv_X(tx = t.designmat.X, siginv = inv.sig, y = Y.vec), nrow = Kt, ncol = p)
     
     beta.cur = t(mu.q.BW) %*% t(Theta)
     
@@ -161,7 +162,7 @@ vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1, min.iter = 10, max.i
     
     ## lambda for fixed effects
     for(term in 1:dim(W.des)[2]){
-      b.q.lambda.BW[term] = B + .5 * (t(mu.q.BW[,term]) %*% P.mat %*% mu.q.BW[,term] + 
+      b.q.lambda.BW[term] = Bw[term] + .5 * (t(mu.q.BW[,term]) %*% P.mat %*% mu.q.BW[,term] + 
                                         sum(diag(P.mat %*% sigma.q.BW[(Kt*(term-1)+1):(Kt*term),(Kt*(term-1)+1):(Kt*term)])))
     }
     

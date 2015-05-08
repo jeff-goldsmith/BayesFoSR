@@ -11,7 +11,17 @@
 #' variables in the model. If not found in data, the variables are taken from 
 #' environment(formula), typically the environment from which the function is 
 #' called.
-#' 
+#' @param alpha tuning parameter balancing second-derivative penalty and
+#' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Apsi hyperparameter for inverse gamma controlling variance of spline terms
+#' for FPC effects
+#' @param Bpsi hyperparameter for inverse gamma controlling variance of spline terms
+#' for FPC effects
+#'  
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
 #' Assessing Systematic Effects of Stroke on Motor Control using Hierarchical 
@@ -21,7 +31,8 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
+vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1,
+                      Aw = NULL, Bw = NULL, Apsi = NULL, Bpsi = NULL){
   
   # not used now but may need this later
   call <- match.call()
@@ -80,34 +91,7 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   P0 = t(Theta) %*% t(diff0) %*% diff0 %*% Theta
   P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
   P.mat = alpha * P0 + (1-alpha) * P2
-  
-  ## hyper parameters for inverse gaussians
-  A = .5
-  B = .5
-  
-  ## matrices to to approximate paramater values
-  sigma.q.BW = vector("list", p)
-  for(k in 1:p){
-    sigma.q.BW[[k]] = diag(1, Kt)
-  }
-  mu.q.BW = matrix(0, nrow = Kt, ncol = p)  
-  
-  sigma.q.Bpsi = vector("list", Kp)
-  for(k in 1:Kp){
-    sigma.q.Bpsi[[k]] = diag(1, Kt)
-  }
-  mu.q.Bpsi = matrix(0, nrow = Kt, ncol = Kp)  
-  
-  sigma.q.C = vector("list", I)
-  for(k in 1:I){
-    sigma.q.C[[k]] = diag(1, Kp)
-  }
-  mu.q.C = matrix(rnorm(I*Kp, 0, .01), I, Kp)
-  
-  b.q.lambda.BW = rep(1, p)
-  b.q.lambda.Bpsi = rep(1, Kp)
-  b.q.sigma.me = 1
-  
+    
   ## data organization; these computations only need to be done once
   Y.vec = as.vector(t(Y))
   obspts.vec = !is.na(Y.vec)
@@ -123,8 +107,40 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
     sumXtX = sumXtX + t(X.cur)%*% X.cur
   }  
 
+  ## initial estimation and hyperparameter choice
+  vec.BW = solve(kronecker(t(W.des)%*% W.des, t(Theta) %*% Theta)) %*% t(kronecker(W.des, Theta)) %*% Y.vec
+  mu.q.BW = matrix(vec.BW, Kt, p)
+  
+  Yhat = as.matrix(W.des %*% t(mu.q.BW) %*% t(Theta))
+  
+  Aw = ifelse(is.null(Aw), Kt/2, Aw)
+  if(is.null(Bw)){
+    Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, .5*sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
+  } else {
+    Bw = b.q.lambda.BW = rep(Bw, p)
+  }
+  
+  Apsi = ifelse(is.null(Apsi), Kt/2, Apsi)
+  Bpsi = ifelse(is.null(Bpsi), Kt/2, Bpsi)
+  Asig = 1; Bsig = 1
+  
+  ## matrices to to approximate paramater values
+  sigma.q.Bpsi = vector("list", Kp)
+  for(k in 1:Kp){
+    sigma.q.Bpsi[[k]] = diag(1, Kt)
+  }
+  mu.q.Bpsi = matrix(0, nrow = Kt, ncol = Kp)  
+  
+  sigma.q.C = vector("list", I)
+  for(k in 1:I){
+    sigma.q.C[[k]] = diag(1, Kp)
+  }
+  mu.q.C = matrix(rnorm(I*Kp, 0, .01), I, Kp)
+  
+  b.q.lambda.Bpsi = rep(Bpsi, Kp)
+  b.q.sigma.me = Bsig
+  
   ## initialize estimates of fixed, random and pca effects
-  fixef.cur = matrix(0, nrow = I, ncol = D)
   pcaef.cur = matrix(0, I, D)
 
   lpxq=c(0,1)
@@ -141,8 +157,8 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   
     mean.cur = as.vector(t(pcaef.cur))[obspts.vec]
     
-    sigma.q.beta = solve(as.numeric((A + I*D/2)/(b.q.sigma.me)) * XtX + kronecker(diag((A+Kt/2)/b.q.lambda.BW), P.mat ))
-    mu.q.beta = matrix(sigma.q.beta %*% (as.numeric((A + I*D/2)/(b.q.sigma.me)) * t.designmat.X %*% (Y.vec - mean.cur)), nrow = Kt, ncol = p)
+    sigma.q.beta = solve(as.numeric((Asig + I*D/2)/(b.q.sigma.me)) * XtX + kronecker(diag((Aw+Kt/2)/b.q.lambda.BW), P.mat ))
+    mu.q.beta = matrix(sigma.q.beta %*% (as.numeric((Asig + I*D/2)/(b.q.sigma.me)) * t.designmat.X %*% (Y.vec - mean.cur)), nrow = Kt, ncol = p)
   
     beta.cur = t(mu.q.beta) %*% t(Theta)
     fixef.cur = as.matrix(X %*% beta.cur)
@@ -155,10 +171,10 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
     designmat = kronecker(mu.q.C, Theta)[obspts.vec,]
     
     sigma.q.Bpsi = solve( 
-      kronecker(diag((A+Kt/2)/b.q.lambda.Bpsi), P.mat  ) + 
-        as.numeric((A + J/2)/(b.q.sigma.me)) * f_sum(mu.q.c = mu.q.C, sig.q.c = sigma.q.C, theta = t(Theta), obspts.mat = !is.na(Y))
+      kronecker(diag((Apsi+Kt/2)/b.q.lambda.Bpsi), P.mat  ) + 
+        as.numeric((Asig + J/2)/(b.q.sigma.me)) * f_sum(mu.q.c = mu.q.C, sig.q.c = sigma.q.C, theta = t(Theta), obspts.mat = !is.na(Y))
     )
-    mu.q.Bpsi = matrix(((A + J/2)/(b.q.sigma.me)) * sigma.q.Bpsi %*% f_sum2(y = Y, fixef = fixef.cur, mu.q.c = mu.q.C, kt = Kt, theta = t(Theta)), nrow = Kt, ncol = Kp)
+    mu.q.Bpsi = matrix(((Asig + J/2)/(b.q.sigma.me)) * sigma.q.Bpsi %*% f_sum2(y = Y, fixef = fixef.cur, mu.q.c = mu.q.C, kt = Kt, theta = t(Theta)), nrow = Kt, ncol = Kp)
         
     psi.cur = t(mu.q.Bpsi) %*% t(Theta)
     ppT = (psi.cur) %*% t(psi.cur)
@@ -172,11 +188,11 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
       Theta_i = t(Theta)[,obs.points]
       sigma.q.C[[subj]] = solve( 
         diag(1, Kp, Kp ) +
-          ((A + J/2)/(b.q.sigma.me)) * (f_trace(Theta_i = Theta_i, Sig_q_Bpsi = sigma.q.Bpsi, Kp = Kp, Kt = Kt) + 
+          ((Asig + J/2)/(b.q.sigma.me)) * (f_trace(Theta_i = Theta_i, Sig_q_Bpsi = sigma.q.Bpsi, Kp = Kp, Kt = Kt) + 
                                           t(mu.q.Bpsi) %*% Theta_i %*% t(Theta_i) %*% mu.q.Bpsi)
       )
       
-      mu.q.C[subj,] = ((A + J/2)/(b.q.sigma.me)) * sigma.q.C[[subj]] %*% as.matrix(psi.cur[,obs.points]) %*%  (Y[subj,obs.points] - fixef.cur[subj,obs.points] )
+      mu.q.C[subj,] = ((Asig + J/2)/(b.q.sigma.me)) * sigma.q.C[[subj]] %*% as.matrix(psi.cur[,obs.points]) %*%  (Y[subj,obs.points] - fixef.cur[subj,obs.points] )
     }
     
     pcaef.cur =  as.matrix(mu.q.C %*% psi.cur)
@@ -187,19 +203,19 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   
     ## measurement error variance
     resid = as.vector(Y - fixef.cur - pcaef.cur)
-    b.q.sigma.me = as.numeric(B + .5 * (crossprod(resid[!is.na(resid)]) + 
+    b.q.sigma.me = as.numeric(Bsig + .5 * (crossprod(resid[!is.na(resid)]) + 
                                         sum(diag(sumXtX %*% sigma.q.beta)) + 
                                         f_sum4(mu.q.c= mu.q.C, sig.q.c = sigma.q.C, mu.q.bpsi = mu.q.Bpsi, sig.q.bphi = sigma.q.Bpsi, theta= Theta, obspts.mat = !is.na(Y))) )
         
     ## lambda for fixed effects
     for(term in 1:dim(W.des)[2]){
-      b.q.lambda.BW[term] = B + .5 * (t(mu.q.BW[,term]) %*% P.mat %*% mu.q.BW[,term] + 
+      b.q.lambda.BW[term] = Bw[term] + .5 * (t(mu.q.BW[,term]) %*% P.mat %*% mu.q.BW[,term] + 
                                         sum(diag(P.mat %*% sigma.q.beta[(Kt*(term-1)+1):(Kt*term),(Kt*(term-1)+1):(Kt*term)])))
     }
     
     ## lambda for FPCA basis functions
     for(K in 1:Kp){
-      b.q.lambda.Bpsi[K] = B + .5 * (t(mu.q.Bpsi[,K]) %*% P.mat %*% mu.q.Bpsi[,K] + 
+      b.q.lambda.Bpsi[K] = Bpsi + .5 * (t(mu.q.Bpsi[,K]) %*% P.mat %*% mu.q.Bpsi[,K] + 
                                        sum(diag(P.mat %*% sigma.q.Bpsi[(Kt*(K-1)+1):(Kt*K),(Kt*(K-1)+1):(Kt*K)])))
     }
     
@@ -219,15 +235,15 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   Yhat = X %*% beta.cur
 
   ## export variance components
-  sigeps.pm = 1 / as.numeric((A + J/2)/(b.q.sigma.me))
+  sigeps.pm = 1 / as.numeric((Asig + J/2)/(b.q.sigma.me))
 
   ## do svd to get rotated fpca basis
   temp = svd(t(psi.cur))
   psi.cur = t(temp$u)
   lambda.pm = temp$d
   
-  ret = list(beta.cur, psi.cur, Yhat, sigeps.pm, lambda.pm)
-  names(ret) = c("beta.pm", "psi.pm", "Yhat", "sigeps.pm", "lambda.pm")
+  ret = list(beta.cur, psi.cur, Yhat, fixef.cur, pcaef.cur, sigeps.pm, lambda.pm)
+  names(ret) = c("beta.pm", "psi.pm", "Yhat", "fixef", "pcaef", "sigeps.pm", "lambda.pm")
 
   ret
 

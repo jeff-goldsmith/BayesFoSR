@@ -19,6 +19,7 @@
 #' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
 #' for population-level effects
 #' @param v hyperparameter for inverse Wishart prior on residual covariance
+#' @param seed seed value to start the sampler; ensures reproducibility
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -27,11 +28,12 @@
 #' 
 #' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
 #' @importFrom splines bs
+#' @importFrom MASS mvrnorm
 #' @importFrom MCMCpack riwish
 #' @export
 #' 
 gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1, 
-                         min.iter = 10, max.iter = 50, Aw = NULL, Bw = NULL, v = NULL){
+                         min.iter = 10, max.iter = 50, Aw = NULL, Bw = NULL, v = NULL, SEED = NULL){
 
   # not used now but may need this later
   call <- match.call()
@@ -81,7 +83,7 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
   
   ## fixed effect design matrix
   W.des = X
-    
+
   I = dim(Y)[1]
   p = dim(W.des)[2]
   D = dim(Y)[2]
@@ -111,12 +113,12 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
     cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
                                                        ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
     cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
-    Psi = cov.hat * IJ
+    Psi = cov.hat * I
   } else {
     Psi = diag(v, D, D)
   }
   
-  v = ifelse(is.null(v), IJ, v)
+  v = ifelse(is.null(v), I, v)
   inv.sig = solve(Psi/v)
   
   Aw = ifelse(is.null(Aw), Kt/2, Aw)
@@ -144,9 +146,9 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
     ## update b-spline parameters for fixed effects
     ###############################################################
     
-    sigma = solve(t.designmat.X %*% kronecker(diag(1, I, I), inv.sig) %*% t(t.designmat.X) + 
+    sigma = solve(Xt_siginv_X(tx = t.designmat.X, siginv = inv.sig) + 
                   kronecker(diag(lambda.bw), P.mat ))
-    mu = sigma %*% (t.designmat.X %*% kronecker(diag(1, I, I), inv.sig) %*%  Y.vec)
+    mu = sigma %*% Xt_siginv_X(tx = t.designmat.X, siginv = inv.sig, y = Y.vec)
       
     bw = matrix(mvrnorm(1, mu = mu, Sigma = sigma), nrow = Kt, ncol = p)
 
@@ -165,8 +167,8 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
 
     ## lambda for beta's
     for(term in 1:p){
-      a.post = A + Kt/2
-      b.post = B + 1/2 * bw[,term] %*% P.mat %*% bw[,term]
+      a.post = Aw + Kt/2
+      b.post = Bw[term] + 1/2 * bw[,term] %*% P.mat %*% bw[,term]
       lambda.bw[term] = rgamma(1, a.post, b.post)
     }
       

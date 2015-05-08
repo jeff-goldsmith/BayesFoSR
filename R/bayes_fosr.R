@@ -13,10 +13,11 @@
 #' variables in the model. If not found in data, the variables are taken from 
 #' environment(formula), typically the environment from which the function is 
 #' called.
-#' @param est.method method used to estimate model parameters. Options are "VB" and
-#' "Gibbs", with "VB" as default. Variational Bayes is a fast approximation to
+#' @param est.method method used to estimate model parameters. Options are "VB",
+#' "Gibbs", and "GLS" with "VB" as default. Variational Bayes is a fast approximation to
 #' the full posterior and often provides good point estimates, but may be 
-#' unreliable for inference.
+#' unreliable for inference. "GLS" doesn't do anything Bayesian -- just fits an
+#' unpenalized GLS estimator for the specified model.
 #' @param cov.method method used to estimate the residual covariance structure.
 #' Options are "FPCA" and "Wishart", with default "FPCA"
 #' @param ... additional arguments that are passed to individual fitting functions.
@@ -33,7 +34,10 @@ bayes_fosr = function(formula, data=NULL, est.method = "VB", cov.method = "FPCA"
   
   ranef = sum(grepl("re", formula))
 
-  if(ranef == 0 & est.method == "VB" & cov.method == "FPCA"){
+  if(ranef == 0 & est.method == "GLS"){
+    message("Despite the package name, estimation method `GLS` doesn't do anything Bayesian")
+    ret = gls_cs(formula = formula, data = data, ...)
+  } else if(ranef == 0 & est.method == "VB" & cov.method == "FPCA"){
     ret = vb_cs_fpca(formula = formula, data = data, ...)
   } else if(ranef == 0 & est.method == "VB" & cov.method == "Wishart"){
     ret = vb_cs_wish(formula = formula, data = data, ...)
@@ -49,6 +53,8 @@ bayes_fosr = function(formula, data=NULL, est.method = "VB", cov.method = "FPCA"
     ret = gibbs_mult_fpca(formula = formula, data = data, ...)
   } else if(ranef == 1 & est.method == "Gibbs" & cov.method == "Wishart"){
     ret = gibbs_mult_wish(formula = formula, data = data, ...)
+  } else {
+    error("The combination of estimation method and covariance structure you specified is not yet implemented.")
   }
   
   ret

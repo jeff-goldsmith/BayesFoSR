@@ -16,6 +16,7 @@
 #' @param sig2.me starting value for measurement error variance
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' @param seed seed value to start the sampler; ensures reproducibility
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -24,9 +25,10 @@
 #' 
 #' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
 #' @importFrom splines bs
+#' @importFrom MASS mvrnorm
 #' @export
 #' 
-gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.burn = 1000, sig2.me = .01, alpha = .1){
+gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.burn = 1000, sig2.me = .01, alpha = .1, SEED = NULL){
 
   # not used now but may need this later
   call <- match.call()
@@ -72,9 +74,8 @@ gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.bu
   # automatically adds in intercept
   X <- model.matrix(mt_fixed, mf_fixed, contrasts)
   
-  
-  set.seed(1)
-  
+  if(!is.null(SEED)) { set.seed(SEED) }
+    
   ## fixed and random effect design matrices
   W.des = X
   Z.des = t(as.matrix(Z))

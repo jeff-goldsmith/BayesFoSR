@@ -32,6 +32,7 @@
 #' 
 #' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
 #' @importFrom splines bs
+#' @importFrom MASS mvrnorm
 #' @importFrom MCMCpack riwish
 #' @export
 #' 

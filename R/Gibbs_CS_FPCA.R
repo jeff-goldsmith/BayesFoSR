@@ -16,6 +16,15 @@
 #' @param sig2.me starting value for measurement error variance
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
+#' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
+#' for population-level effects
+#' @param Apsi hyperparameter for inverse gamma controlling variance of spline terms
+#' for FPC effects
+#' @param Bpsi hyperparameter for inverse gamma controlling variance of spline terms
+#' for FPC effects
+#' @param seed seed value to start the sampler; ensures reproducibility
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -24,9 +33,11 @@
 #' 
 #' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
 #' @importFrom splines bs
+#' @importFrom MASS mvrnorm
 #' @export
 #' 
-gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn = 1000, sig2.me = .01, alpha = .1){
+gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn = 1000, SEED = NULL, 
+                         sig2.me = .01, alpha = .1, Aw = NULL, Bw = NULL, Apsi = NULL, Bpsi = NULL){
 
   # not used now but may need this later
   call <- match.call()
@@ -68,35 +79,53 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
   # get response (Y)
   Y <- model.response(mf_fixed, "numeric")
   
+  if(!is.null(SEED)) { set.seed(SEED) }
+  
   # x is a matrix of fixed effects
   # automatically adds in intercept
-  X <- model.matrix(mt_fixed, mf_fixed, contrasts)
+  W.des = X <- model.matrix(mt_fixed, mf_fixed, contrasts)
   
-  I = dim(Y)[1]
-
-  ## fixed and random effect design matrices
-  W.des = X
-
-  ## bspline basis and penalty matrix
+  ## subject covariates
+  I = dim(X)[1]
   D = dim(Y)[2]
-  Theta = bs(1:D, df = Kt, intercept=TRUE, degree=3)
-
-  diff2 = matrix(rep(c(1,-2,1, rep(0, D-2)), D-2)[1:((D-2)*D)], D-2, D, byrow = TRUE)
-  P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
-  P.mat = P2
+  p = dim(X)[2]
   
-  ## hyper parameters for inverse gamma
-  A = .01
-  B = .01
-
-  ## number of fixed effects
-  p = dim(W.des)[2]
-
+  ## bspline basis and penalty matrix
+  Theta = bs(1:D, df=Kt, intercept=TRUE, degree=3)
+  
+  diff0 = diag(1, D, D)
+  diff2 = matrix(rep(c(1,-2,1, rep(0, D-2)), D-2)[1:((D-2)*D)], D-2, D, byrow = TRUE)
+  P0 = t(Theta) %*% t(diff0) %*% diff0 %*% Theta
+  P2 = t(Theta) %*% t(diff2) %*% diff2 %*% Theta
+  P.mat = alpha * P0 + (1-alpha) * P2
+  
+  ## data organization; these computations only need to be done once   
+  Y.vec = as.vector(t(Y))
+  t.designmat.W = t(kronecker(W.des, Theta))
+  sig.W = kronecker(t(W.des) %*% W.des, t(Theta)%*% Theta)
+  
+  ## initial estimation and hyperparameter choice
+  vec.BW = solve(kronecker(t(W.des)%*% W.des, t(Theta) %*% Theta)) %*% t(kronecker(W.des, Theta)) %*% Y.vec
+  mu.q.BW = matrix(vec.BW, Kt, p)
+  
+  Yhat = as.matrix(W.des %*% t(mu.q.BW) %*% t(Theta))
+  
+  Aw = ifelse(is.null(Aw), Kt/2, Aw)
+  if(is.null(Bw)){
+    Bw = b.q.lambda.BW = sapply(1:p, function(u) max(1, .5*sum(diag( t(mu.q.BW[,u]) %*% P.mat %*% (mu.q.BW[,u])))))
+  } else {
+    Bw = b.q.lambda.BW = rep(Bw, p)
+  }
+  
+  Apsi = ifelse(is.null(Apsi), Kt/2, Apsi)
+  Bpsi = ifelse(is.null(Bpsi), Kt/2, Bpsi)
+  Asig = 1; Bsig = 1
+  
   ## matrices to store within-iteration estimates 
   BW = array(NA, c(Kt, p, N.iter))
       BW[,,1] = bw = matrix(0, Kt, p)
-  Bpsi = array(NA, c(Kt, Kp, N.iter))
-      Bpsi[,,1] = bpsi = matrix(0, Kt, Kp)
+  BPSI = array(NA, c(Kt, Kp, N.iter))
+      BPSI[,,1] = bpsi = matrix(0, Kt, Kp)
   C = array(NA, c(I, Kp, N.iter))
       C[,,1] = c.mat = matrix(rnorm(I*Kp, 0, .01), I, Kp)
   SIGMA = rep(NA, N.iter)
@@ -107,10 +136,6 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
       LAMBDA.PSI[1,] = lambda.psi = rep(1,Kp)
   y.post = array(NA, dim = c(I, D, (N.iter - N.burn))) 
 
-  ## data organization; these computations only need to be done once   
-  Y.vec = as.vector(t(Y))
-  t.designmat.W = t(kronecker(W.des, Theta))
-  sig.W = kronecker(t(W.des) %*% W.des, t(Theta)%*% Theta)
 
   ## initialize estimates of fixed, random and pca effects
   beta.cur = t(bw) %*% t(Theta)
@@ -167,21 +192,21 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
       
     ## sigma.me
     Y.cur = fixef.cur +  pcaef.cur
-    a.post = A + I*D/2
-    b.post = B + 1/2*crossprod(as.vector(Y - Y.cur))
+    a.post = Asig + I*D/2
+    b.post = Bsig + 1/2*crossprod(as.vector(Y - Y.cur))
     sig2.me = 1/rgamma(1, a.post, b.post)
 
     ## lambda for beta's
     for(term in 1:p){
-      a.post = A + Kt/2
-      b.post = B + 1/2*bw[,term] %*% P.mat %*% bw[,term]
+      a.post = Aw + Kt/2
+      b.post = Bw[term] + 1/2*bw[,term] %*% P.mat %*% bw[,term]
       lambda.bw[term] = 1/rgamma(1, a.post, b.post)
     }
 
     ## lambda for psi's
     for(K in 1:Kp){
-      a.post = A + Kt/2
-      b.post = B + 1/2*bpsi[,K] %*% P.mat %*% bpsi[,K]
+      a.post = Apsi + Kt/2
+      b.post = Bpsi + 1/2*bpsi[,K] %*% P.mat %*% bpsi[,K]
       lambda.psi[K] = 1/rgamma(1, a.post, b.post)
     }
 
@@ -190,7 +215,7 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
     ###############################################################
 
     BW[,,i] = as.matrix(bw)
-    Bpsi[,,i] = as.matrix(bpsi)
+    BPSI[,,i] = as.matrix(bpsi)
     C[,,i] = as.matrix(c.mat)
       
     SIGMA[i] = sig2.me
@@ -225,7 +250,7 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
   for(i in 1:Kp){
   	psi.post = matrix(NA, nrow = (N.iter - N.burn), ncol = D)
   	for(n in 1:(N.iter - N.burn)){
-  	  psi.post[n,] = Bpsi[,i, n + N.burn] %*% t(Theta)
+  	  psi.post[n,] = BPSI[,i, n + N.burn] %*% t(Theta)
   	}
   	psi.pm[i,] = apply(psi.post, 2, mean)
   }

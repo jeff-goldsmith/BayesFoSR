@@ -27,6 +27,8 @@ called.}
 
 \item{alpha}{tuning parameter balancing second-derivative penalty and
 zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)}
+
+\item{seed}{seed value to start the sampler; ensures reproducibility}
 }
 \description{
 Fitting function for function-on-scalar regression for longitudinal data.

@@ -16,10 +16,11 @@ variables in the model. If not found in data, the variables are taken from
 environment(formula), typically the environment from which the function is
 called.}
 
-\item{est.method}{method used to estimate model parameters. Options are "VB" and
-"Gibbs", with "VB" as default. Variational Bayes is a fast approximation to
+\item{est.method}{method used to estimate model parameters. Options are "VB",
+"Gibbs", and "GLS" with "VB" as default. Variational Bayes is a fast approximation to
 the full posterior and often provides good point estimates, but may be
-unreliable for inference.}
+unreliable for inference. "GLS" doesn't do anything Bayesian -- just fits an
+unpenalized GLS estimator for the specified model.}
 
 \item{cov.method}{method used to estimate the residual covariance structure.
 Options are "FPCA" and "Wishart", with default "FPCA"}
