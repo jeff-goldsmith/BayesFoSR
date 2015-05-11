@@ -105,10 +105,11 @@ vb_cs_wish = function(formula, data=NULL, Kt=5, alpha = .1, min.iter = 10, max.i
   Yhat = as.matrix(W.des %*% t(mu.q.BW) %*% t(Theta))
   
   if(is.null(v)){
-    fpca.temp = fpca.sc(Y = Y - Yhat, pve = .95, var = TRUE)
+    fpca.temp = fpca.sc(Y = Y - Yhat, pve = .995, var = TRUE)
     cov.hat = fpca.temp$efunctions %*% tcrossprod(diag(fpca.temp$evalues, nrow = length(fpca.temp$evalues), 
                                                        ncol = length(fpca.temp$evalues)), fpca.temp$efunctions)    
     cov.hat = cov.hat + diag(fpca.temp$sigma2, D, D)
+#    cov.hat = cov(Y - Yhat)
     Psi = cov.hat * I
   } else {
     Psi = diag(v, D, D)

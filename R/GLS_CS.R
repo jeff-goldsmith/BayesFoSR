@@ -84,7 +84,7 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs"){
     Theta = pbs(1:D, df = Kt, intercept=TRUE, degree=3)
   }
 
-  X.des = cbind(1,as.matrix(subset(data, select = -accel)))
+  X.des = X
   Y.vec = as.vector(t(Y)) 
   X = kronecker(X.des, Theta)
   n.coef = dim(X.des)[2]
@@ -98,11 +98,14 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs"){
   ## Get Residual Structure
   cat("Step 2: FPCA of OLS residuals \n")
   resid.mat = matrix(resid(model.ols), I, D, byrow = TRUE)
-  fpca.resid = fpca.sc(resid.mat)
+  fpca.resid = fpca.sc(resid.mat, pve = .995)
   resid.cov = with(fpca.resid, efunctions %*% diag(evalues) %*% t(efunctions))
   
   ## account for (possibly non-constant) ME nugget effect
   diag(resid.cov) = max(diag(cov(resid.mat)), diag(resid.cov))
+  
+  #resid.cov = cov(resid.mat)
+  
   
   ## GLS fit through prewhitening
   cat("Step 3: GLS \n")
