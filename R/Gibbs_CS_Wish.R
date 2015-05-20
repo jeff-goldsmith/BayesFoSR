@@ -205,9 +205,9 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
   ## export fitted values
   fixef.pm = W.des %*% beta.pm
   
-  ret = list(beta.pm, beta.LB, beta.UB, fixef.pm, sig.pm)
-  names(ret) = c("beta.pm", "beta.LB", "beta.UB", "fixef.pm", "sig.pm")
-
+  ret = list(beta.pm, beta.UB, beta.LB, fixef.pm, mt_fixed, data)
+  names(ret) = c("beta.hat", "beta.UB", "beta.LB", "Yhat", "terms", "data")
+  class(ret) = "fosr"
   ret
   
 }

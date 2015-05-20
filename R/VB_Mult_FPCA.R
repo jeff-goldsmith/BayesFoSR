@@ -276,12 +276,15 @@ vb_mult_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   r2.fr = 1 - (sum((Y - Yhat.subj)^2)/(IJ*D)) / (sum((Y)^2)/(IJ*D))
   r2.frp = 1 - (sum((Y - Yhat)^2)/(IJ*D)) / (sum((Y)^2)/(IJ*D))
     
-  ret = list(beta.cur, beta.UB, beta.LB, psi.cur, pcaef.cur, ranef.cur, ranef.subj, Yhat, Yhat.subj, edf, 
-             sigeps.pm, r2.f, r2.fr, r2.frp, mu.q.BW, mu.q.BZ, mu.q.Bpsi, mu.q.C, 
-             1/((A + IJ*D/2)/(b.q.sigma.me)), 1/((A+I*Kt/2)/b.q.lambda.BZ), 1/((A+Kt/2)/b.q.lambda.BW), 1/((A+Kt/2)/b.q.lambda.Bpsi))
-  names(ret) = c("beta.pm", "beta.UB", "beta.LB", "psi.pm", "pcaef.cur", "ranef.pm", "ranef.subj", "Yhat", "Yhat.subj", "edf", 
-             "sigeps.pm", "r2.f", "r2.fr", "r2.frp", "BW.pm", "BZ.pm", "Bpsi.pm", "BC.pm", "sige.pm", "sigz.pm", "sigw.pm", "sigpsi.pm")
-  
+#  ret = list(beta.cur, beta.UB, beta.LB, psi.cur, pcaef.cur, ranef.cur, ranef.subj, Yhat, Yhat.subj, edf, 
+#             sigeps.pm, r2.f, r2.fr, r2.frp, mu.q.BW, mu.q.BZ, mu.q.Bpsi, mu.q.C, 
+#             1/((A + IJ*D/2)/(b.q.sigma.me)), 1/((A+I*Kt/2)/b.q.lambda.BZ), 1/((A+Kt/2)/b.q.lambda.BW), 1/((A+Kt/2)/b.q.lambda.Bpsi))
+#  names(ret) = c("beta.pm", "beta.UB", "beta.LB", "psi.pm", "pcaef.cur", "ranef.pm", "ranef.subj", "Yhat", "Yhat.subj", "edf", 
+#             "sigeps.pm", "r2.f", "r2.fr", "r2.frp", "BW.pm", "BZ.pm", "Bpsi.pm", "BC.pm", "sige.pm", "sigz.pm", "sigw.pm", "sigpsi.pm")
+
+  ret = list(beta.cur, beta.UB, beta.LB, fixef.cur, mt_fixed, data, psi.cur, sigeps.pm, lambda.pm)
+  names(ret) = c("beta.hat", "beta.UB", "beta.LB", "Yhat", "terms", "data", "psi.hat", "sigeps.pm", "lambda.pm")
+  class(ret) = "fosr"
   ret
 
 }

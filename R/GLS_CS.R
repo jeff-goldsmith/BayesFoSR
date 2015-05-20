@@ -27,7 +27,7 @@
 #' @importFrom refund fpca.sc
 #' @export
 #' 
-gls_cs = function(formula, data=NULL, Kt=5, basis = "bs"){
+gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL){
   
   # not used now but may need this later
   call <- match.call()
@@ -89,26 +89,36 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs"){
   X = kronecker(X.des, Theta)
   n.coef = dim(X.des)[2]
   
-  ## OLS model fitting and processing results
-  cat("Step 1: OLS \n")
-  model.ols = lm(Y.vec ~ -1 + X)
-  Bx.ols = matrix(model.ols$coef, nrow = Kt, ncol = n.coef)  
-  beta.hat.ols = t(Bx.ols) %*% t(Theta)
-  
-  ## Get Residual Structure
-  cat("Step 2: FPCA of OLS residuals \n")
-  resid.mat = matrix(resid(model.ols), I, D, byrow = TRUE)
-  fpca.resid = fpca.sc(resid.mat, pve = .995)
-  resid.cov = with(fpca.resid, efunctions %*% diag(evalues) %*% t(efunctions))
-  
-  ## account for (possibly non-constant) ME nugget effect
-  diag(resid.cov) = max(diag(cov(resid.mat)), diag(resid.cov))
-  
-  #resid.cov = cov(resid.mat)
-  
+  if(is.null(sigma)){
+    ## OLS model fitting and processing results
+    cat("Using OLS to estimate residual covariance \n")
+    model.ols = lm(Y.vec ~ -1 + X)
+    Bx.ols = matrix(model.ols$coef, nrow = Kt, ncol = n.coef)  
+    beta.hat.ols = t(Bx.ols) %*% t(Theta)
+    
+    resid.mat = matrix(resid(model.ols), I, D, byrow = TRUE)
+    
+    ## Get Residual Structure using FPCA
+    ## note: this is commented out because, in simulations based on the headstart data, 
+    ## using FPCA lead to higher-than-nominal sizes for tests of nested models. 
+    ## using the raw covariance worked better. using FPCA is possible, but relies
+    ## on some case-specific choices.
+    # raw.resid.cov = cov(resid.mat)
+    # fpca.resid = fpca.sc(resid.mat, pve = .9995, nbasis = 20)
+    # resid.cov = with(fpca.resid, efunctions %*% diag(evalues) %*% t(efunctions))
+    
+    ## account for (possibly non-constant) ME nugget effect
+    # sm.diag = Theta %*% solve(crossprod(Theta)) %*% t(Theta) %*% (diag(raw.resid.cov) - diag(resid.cov))
+    # if(sum( sm.diag < 0 ) >0) { sm.diag[ sm.diag < 0] = min((diag(raw.resid.cov) - diag(resid.cov))[ sm.diag < 0])}
+    # diag(resid.cov) = diag(resid.cov) + sm.diag
+    
+    resid.cov = cov(resid.mat)
+    
+    sigma = resid.cov
+  }
   
   ## GLS fit through prewhitening
-  cat("Step 3: GLS \n")
+  cat("GLS \n")
   
   S = chol(solve(resid.cov))
   Y.t = t(Y)
@@ -121,24 +131,28 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs"){
   Bx = matrix(model$coef, nrow = Kt, ncol = n.coef)  
   beta.hat = t(Bx) %*% t(Theta)
   re = model$residuals
-  Re = matrix(re, I, 144, byrow = TRUE)
+  Re = matrix(re, I, D, byrow = TRUE)
   cov<-vcov(model)
   
   ## get confidence intervals
   beta.UB = beta.LB = matrix(NA, p, D)
+  wald.val = rep(NA, p)
   for(p.cur in 1:p){
     a = Kt*p.cur-(Kt-1)
     b = Kt*p.cur
     cov.cur = Theta %*% cov[a:b,a:b] %*%t(Theta)
     beta.UB[p.cur,] = beta.hat[p.cur,] + 1.96 * sqrt(diag(cov.cur))
-    beta.LB[p.cur,] = beta.hat[p.cur,] + 1.96 * sqrt(diag(cov.cur))
+    beta.LB[p.cur,] = beta.hat[p.cur,] - 1.96 * sqrt(diag(cov.cur))
+    wald.val[p.cur] = Bx[,p.cur] %*% solve(cov[a:b,a:b]) %*% Bx[,p.cur]
   }
   
-  ret = list(beta.hat, beta.UB, beta.LB)
-  names(ret) = c("beta.hat", "beta.UB", "beta.LB")
-
+  Yhat = X.des %*% beta.hat
+  
+  ret = list(beta.hat, beta.UB, beta.LB, Yhat, mt_fixed, data, model, sigma, wald.val)
+  names(ret) = c("beta.hat", "beta.UB", "beta.LB", "Yhat", "terms", "data", "model.gls", "sigma", "wald.val")
+  class(ret) = "fosr"
   ret
-
+    
 }
 
 ###############################################################

@@ -297,6 +297,7 @@ gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.bu
   }
 
   ## export fitted values
+  fixef.pm = W.des %*% beta.pm
   ranef.pm = Z.des %*% b.pm
   Yhat = matrix(NA, nrow = IJ, ncol = D)
 #  for(i in 1:IJ){
@@ -312,11 +313,10 @@ gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.bu
   ## rotate scores to be orthonormal
   psi.pm = t(svd(t(psi.pm))$u)
   
-  ret = list(beta.pm, beta.LB, beta.UB, psi.pm, ranef.pm, Yhat)
-  names(ret) = c("beta.pm", "beta.LB", "beta.UB", "psi.pm", "ranef.pm", "Yhat")
+  ret = list(beta.pm, beta.UB, beta.LB, fixef.pm, mt_fixed, data, psi.pm)
+  names(ret) = c("beta.hat", "beta.UB", "beta.LB", "Yhat", "terms", "data", "psi.pm")
+  class(ret) = "fosr"
 
-  ret
-  
 }
 
 

@@ -237,14 +237,22 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1,
   ## export variance components
   sigeps.pm = 1 / as.numeric((Asig + J/2)/(b.q.sigma.me))
 
+  ## compute CI for fixed effects
+  beta.sd = beta.LB = beta.UB = matrix(NA, nrow = p, ncol = D)
+  for(i in 1:p){
+    beta.sd[i,] = sqrt(diag((Theta) %*% sigma.q.beta[(Kt*(i-1)+1):(Kt*i),(Kt*(i-1)+1):(Kt*i)] %*% t(Theta)))
+    beta.LB[i,] = beta.cur[i,]-1.96*beta.sd[i,]
+    beta.UB[i,] = beta.cur[i,]+1.96*beta.sd[i,]
+  }
+  
   ## do svd to get rotated fpca basis
   temp = svd(t(psi.cur))
   psi.cur = t(temp$u)
   lambda.pm = temp$d
   
-  ret = list(beta.cur, psi.cur, Yhat, fixef.cur, pcaef.cur, sigeps.pm, lambda.pm)
-  names(ret) = c("beta.pm", "psi.pm", "Yhat", "fixef", "pcaef", "sigeps.pm", "lambda.pm")
-
+  ret = list(beta.cur, beta.UB, beta.LB, fixef.cur, mt_fixed, data, psi.cur, sigeps.pm, lambda.pm)
+  names(ret) = c("beta.hat", "beta.UB", "beta.LB", "Yhat", "terms", "data", "psi.hat", "sigeps.pm", "lambda.pm")
+  class(ret) = "fosr"
   ret
 
 }

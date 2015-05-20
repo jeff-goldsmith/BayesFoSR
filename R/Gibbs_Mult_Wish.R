@@ -270,13 +270,16 @@ gibbs_mult_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 100
   sig.pm = solve(apply(INV.SIG, c(1,2), mean))
   
   ## export fitted values
+  fixef.pm = W.des %*% beta.pm
   ranef.pm = Z.des %*% b.pm
   Yhat = apply(y.post, c(1,2), mean)
   
-  ret = list(beta.pm, beta.LB, beta.UB, ranef.pm, sig.pm, Yhat)
-  names(ret) = c("beta.pm", "beta.LB", "beta.UB", "ranef.pm", "sig.pm", "Yhat")
-
+  ret = list(beta.pm, beta.UB, beta.LB, fixef.pm, mt_fixed, data)
+  names(ret) = c("beta.hat", "beta.UB", "beta.LB", "Yhat", "terms", "data")
+  class(ret) = "fosr"
   ret
+  
+  
   
 }
 
