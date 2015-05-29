@@ -120,7 +120,7 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL){
   ## GLS fit through prewhitening
   cat("GLS \n")
   
-  S = chol(solve(resid.cov))
+  S = chol(solve(sigma))
   Y.t = t(Y)
   Z = as.vector(S %*% Y.t)
   T = S %*% Theta
