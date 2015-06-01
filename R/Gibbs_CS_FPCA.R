@@ -25,6 +25,7 @@
 #' @param Bpsi hyperparameter for inverse gamma controlling variance of spline terms
 #' for FPC effects
 #' @param seed seed value to start the sampler; ensures reproducibility
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -36,7 +37,7 @@
 #' @importFrom MASS mvrnorm
 #' @export
 #' 
-gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn = 1000, SEED = NULL, 
+gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, verbose = TRUE, N.iter = 5000, N.burn = 1000, SEED = NULL, 
                          sig2.me = .01, alpha = .1, Aw = NULL, Bw = NULL, Apsi = NULL, Bpsi = NULL){
 
   # not used now but may need this later
@@ -143,7 +144,7 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
   psi.cur = t(bpsi) %*% t(Theta)
   pcaef.cur = c.mat %*% psi.cur
 
-  cat("Beginning Sampler \n")
+  if(verbose) { cat("Beginning Sampler \n") }
   
   for(i in 1:N.iter){
     
@@ -226,6 +227,8 @@ gibbs_cs_fpca = function(formula, Kt=5, Kp=2, data=NULL, N.iter = 5000, N.burn =
       y.post[,,i - N.burn] = fixef.cur+pcaef.cur
     }
   
+    if(verbose) { if(round(i %% (N.iter/10)) == 0) {cat(".")} }
+    
   }
   
   ###############################################################

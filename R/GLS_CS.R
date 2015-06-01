@@ -15,6 +15,7 @@
 #' called.
 #' @param basis basis type; options are "bs" for b-splines and "pbs" for periodic
 #' b-splines
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #'  
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -27,7 +28,7 @@
 #' @importFrom refund fpca.sc
 #' @export
 #' 
-gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL){
+gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL, verbose = TRUE){
   
   # not used now but may need this later
   call <- match.call()
@@ -91,7 +92,7 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL){
   
   if(is.null(sigma)){
     ## OLS model fitting and processing results
-    cat("Using OLS to estimate residual covariance \n")
+    if(verbose) { cat("Using OLS to estimate residual covariance \n") }
     model.ols = lm(Y.vec ~ -1 + X)
     Bx.ols = matrix(model.ols$coef, nrow = Kt, ncol = n.coef)  
     beta.hat.ols = t(Bx.ols) %*% t(Theta)
@@ -112,13 +113,12 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL){
     # if(sum( sm.diag < 0 ) >0) { sm.diag[ sm.diag < 0] = min((diag(raw.resid.cov) - diag(resid.cov))[ sm.diag < 0])}
     # diag(resid.cov) = diag(resid.cov) + sm.diag
     
-    resid.cov = cov(resid.mat)
-    
-    sigma = resid.cov
+    sigma = cov(resid.mat) * (I - 1) / (I - p)
+
   }
   
   ## GLS fit through prewhitening
-  cat("GLS \n")
+  if(verbose) { cat("GLS \n") }
   
   S = chol(solve(sigma))
   Y.t = t(Y)

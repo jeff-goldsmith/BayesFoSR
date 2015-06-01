@@ -35,7 +35,6 @@ bayes_fosr = function(formula, data=NULL, est.method = "VB", cov.method = "FPCA"
   ranef = sum(grepl("re", formula))
 
   if(ranef == 0 & est.method == "GLS"){
-    message("Despite the package name, estimation method `GLS` doesn't do anything Bayesian. Also, no penalization -- just GLS.")
     ret = gls_cs(formula = formula, data = data, ...)
   } else if(ranef == 0 & est.method == "VB" & cov.method == "FPCA"){
     ret = vb_cs_fpca(formula = formula, data = data, ...)

@@ -24,6 +24,7 @@
 #' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
 #' for population-level effects
 #' @param v hyperparameter for inverse Wishart prior on residual covariance
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -34,7 +35,7 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1, min.iter = 10, max.iter = 50,
+vb_mult_wish = function(formula, data=NULL, verbose = TRUE, Kt = 5, alpha = .1, min.iter = 10, max.iter = 50,
                         Az = NULL, Bz = NULL, Aw = NULL, Bw = NULL, v = NULL){
 
   # not used now but may need this later
@@ -158,7 +159,7 @@ vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1, min.iter = 10, m
   lpxq=c(0,1)
   j=2
 
-  cat("Beginning Algorithm \n")
+  if(verbose) { cat("Beginning Algorithm \n") }
 
   while((j < (min.iter + 2) | (lpxq[j]-lpxq[j-1])>1.0E-1) & (j < max.iter)){
   
@@ -235,7 +236,7 @@ vb_mult_wish = function(formula, data=NULL, Kt = 5, alpha = .1, min.iter = 10, m
     lpxq = c(lpxq, curlpxq)
     j=j+1
 
-    cat(".")
+    if(verbose) { cat(".") }
 
   }
 

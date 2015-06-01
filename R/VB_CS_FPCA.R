@@ -21,6 +21,7 @@
 #' for FPC effects
 #' @param Bpsi hyperparameter for inverse gamma controlling variance of spline terms
 #' for FPC effects
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #'  
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -31,7 +32,7 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1,
+vb_cs_fpca = function(formula, data=NULL, verbose = TRUE, Kt=5, Kp=2, alpha = .1,
                       Aw = NULL, Bw = NULL, Apsi = NULL, Bpsi = NULL){
   
   # not used now but may need this later
@@ -146,7 +147,7 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1,
   lpxq=c(0,1)
   j=2
   
-  cat("Beginning Algorithm \n")
+  if(verbose) { cat("Beginning Algorithm \n") }
   
   #  while(j<4 | (lpxq[j]-lpxq[j-1])>1.0E-1){
   while(j<11){
@@ -227,7 +228,7 @@ vb_cs_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1,
     lpxq = c(lpxq, curlpxq)
     j=j+1
     
-    cat(".")
+    if(verbose) { cat(".") }
     
   }
 

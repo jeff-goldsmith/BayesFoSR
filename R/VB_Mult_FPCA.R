@@ -11,6 +11,7 @@
 #' variables in the model. If not found in data, the variables are taken from 
 #' environment(formula), typically the environment from which the function is 
 #' called.
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -21,7 +22,7 @@
 #' @importFrom splines bs
 #' @export
 #' 
-vb_mult_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
+vb_mult_fpca = function(formula, data=NULL, verbose = TRUE, Kt=5, Kp=2, alpha = .1){
 
   # not used now but may need this later
   call <- match.call()
@@ -140,7 +141,7 @@ vb_mult_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
   lpxq=c(0,1)
   j=2
 
-  cat("Beginning Algorithm \n")
+  if(verbose) { cat("Beginning Algorithm \n") }
 
 #  while(j<4 | (lpxq[j]-lpxq[j-1])>1.0E-1){
   while(j<11){
@@ -236,7 +237,7 @@ vb_mult_fpca = function(formula, data=NULL, Kt=5, Kp=2, alpha = .1){
     lpxq = c(lpxq, curlpxq)
     j=j+1
 
-    cat(".")
+    if(verbose) { cat(".") }
 
   }
 

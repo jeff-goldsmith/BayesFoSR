@@ -17,6 +17,7 @@
 #' @param alpha tuning parameter balancing second-derivative penalty and
 #' zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)
 #' @param seed seed value to start the sampler; ensures reproducibility
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -149,7 +150,7 @@ gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.bu
   psi.cur = t(bpsi) %*% t(Theta)
   pcaef.cur = c.mat %*% psi.cur
 
-  cat("Beginning Sampler \n")
+  if(verbose) { cat("Beginning Sampler \n") }
   
   for(i in 1:N.iter){
     
@@ -257,7 +258,8 @@ gibbs_mult_fpca = function(formula, Kt=5, Kp = 2, data=NULL, N.iter = 5000, N.bu
     LAMBDA.BZ[i] = lambda.ranef
     LAMBDA.PSI[i,] = lambda.psi
 
-    cat(i, "\n")
+    if(verbose) { if(round(i %% (N.iter/10)) == 0) {cat(".")} }
+    
   }
 
   ###############################################################

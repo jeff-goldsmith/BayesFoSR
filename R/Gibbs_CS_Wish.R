@@ -20,6 +20,7 @@
 #' for population-level effects
 #' @param v hyperparameter for inverse Wishart prior on residual covariance
 #' @param seed seed value to start the sampler; ensures reproducibility
+#' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #' 
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -32,7 +33,7 @@
 #' @importFrom MCMCpack riwish
 #' @export
 #' 
-gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000, alpha = .1, 
+gibbs_cs_wish = function(formula, Kt=5, data=NULL, verbose = TRUE, N.iter = 5000, N.burn = 1000, alpha = .1, 
                          min.iter = 10, max.iter = 50, Aw = NULL, Bw = NULL, v = NULL, SEED = NULL){
 
   # not used now but may need this later
@@ -138,7 +139,7 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
   
   y.post = array(NA, dim = c(I, D, (N.iter - N.burn)))
 
-  cat("Beginning Sampler \n")
+  if(verbose) { cat("Beginning Sampler \n") }
 
   for(i in 1:N.iter){
 
@@ -181,7 +182,7 @@ gibbs_cs_wish = function(formula, Kt=5, data=NULL, N.iter = 5000, N.burn = 1000,
     INV.SIG[,,i] = inv.sig
     LAMBDA.BW[i,] = lambda.bw
     
-    if(round(i %% (N.iter/10)) == 0) {cat(".")}
+    if(verbose) { if(round(i %% (N.iter/10)) == 0) {cat(".")} }
     
   }
 
