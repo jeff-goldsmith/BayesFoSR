@@ -4,9 +4,9 @@
 \alias{vb_mult_wish}
 \title{Multilevel FoSR using Variational Bayes and Wishart prior}
 \usage{
-vb_mult_wish(formula, data = NULL, Kt = 5, alpha = 0.1, min.iter = 10,
-  max.iter = 50, Az = NULL, Bz = NULL, Aw = NULL, Bw = NULL,
-  v = NULL)
+vb_mult_wish(formula, data = NULL, verbose = TRUE, Kt = 5, alpha = 0.1,
+  min.iter = 10, max.iter = 50, Az = NULL, Bz = NULL, Aw = NULL,
+  Bw = NULL, v = NULL)
 }
 \arguments{
 \item{formula}{a formula indicating the structure of the proposed model.}
@@ -15,6 +15,8 @@ vb_mult_wish(formula, data = NULL, Kt = 5, alpha = 0.1, min.iter = 10,
 variables in the model. If not found in data, the variables are taken from
 environment(formula), typically the environment from which the function is
 called.}
+
+\item{verbose}{logical defaulting to \code{TRUE} -- should updates on progress be printed?}
 
 \item{Kt}{number of spline basis functions used to estimate coefficient functions}
 

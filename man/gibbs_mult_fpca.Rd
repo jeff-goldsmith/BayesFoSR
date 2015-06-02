@@ -29,6 +29,8 @@ called.}
 zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)}
 
 \item{seed}{seed value to start the sampler; ensures reproducibility}
+
+\item{verbose}{logical defaulting to \code{TRUE} -- should updates on progress be printed?}
 }
 \description{
 Fitting function for function-on-scalar regression for longitudinal data.

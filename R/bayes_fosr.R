@@ -36,6 +36,8 @@ bayes_fosr = function(formula, data=NULL, est.method = "VB", cov.method = "FPCA"
 
   if(ranef == 0 & est.method == "GLS"){
     ret = gls_cs(formula = formula, data = data, ...)
+  } else if(ranef == 0 & est.method == "OLS"){
+    ret = ols_cs(formula = formula, data = data, ...)
   } else if(ranef == 0 & est.method == "VB" & cov.method == "FPCA"){
     ret = vb_cs_fpca(formula = formula, data = data, ...)
   } else if(ranef == 0 & est.method == "VB" & cov.method == "Wishart"){

@@ -4,9 +4,9 @@
 \alias{gibbs_mult_wish}
 \title{Multilevel FoSR using a Gibbs sampler and Wishart prior}
 \usage{
-gibbs_mult_wish(formula, Kt = 5, data = NULL, N.iter = 5000,
-  N.burn = 1000, alpha = 0.1, Az = NULL, Bz = NULL, Aw = NULL,
-  Bw = NULL, v = NULL, SEED = NULL)
+gibbs_mult_wish(formula, Kt = 5, data = NULL, verbose = TRUE,
+  N.iter = 5000, N.burn = 1000, alpha = 0.1, Az = NULL, Bz = NULL,
+  Aw = NULL, Bw = NULL, v = NULL, SEED = NULL)
 }
 \arguments{
 \item{formula}{a formula indicating the structure of the proposed model.}
@@ -17,6 +17,8 @@ gibbs_mult_wish(formula, Kt = 5, data = NULL, N.iter = 5000,
 variables in the model. If not found in data, the variables are taken from
 environment(formula), typically the environment from which the function is
 called.}
+
+\item{verbose}{logical defaulting to \code{TRUE} -- should updates on progress be printed?}
 
 \item{N.iter}{number of iterations used in the Gibbs sampler}
 

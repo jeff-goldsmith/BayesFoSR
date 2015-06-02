@@ -4,9 +4,9 @@
 \alias{gibbs_cs_fpca}
 \title{Cross-sectional FoSR using a Gibbs sampler and FPCA}
 \usage{
-gibbs_cs_fpca(formula, Kt = 5, Kp = 2, data = NULL, N.iter = 5000,
-  N.burn = 1000, SEED = NULL, sig2.me = 0.01, alpha = 0.1, Aw = NULL,
-  Bw = NULL, Apsi = NULL, Bpsi = NULL)
+gibbs_cs_fpca(formula, Kt = 5, Kp = 2, data = NULL, verbose = TRUE,
+  N.iter = 5000, N.burn = 1000, SEED = NULL, sig2.me = 0.01,
+  alpha = 0.1, Aw = NULL, Bw = NULL, Apsi = NULL, Bpsi = NULL)
 }
 \arguments{
 \item{formula}{a formula indicating the structure of the proposed model.}
@@ -19,6 +19,8 @@ gibbs_cs_fpca(formula, Kt = 5, Kp = 2, data = NULL, N.iter = 5000,
 variables in the model. If not found in data, the variables are taken from
 environment(formula), typically the environment from which the function is
 called.}
+
+\item{verbose}{logical defaulting to \code{TRUE} -- should updates on progress be printed?}
 
 \item{N.iter}{number of iterations used in the Gibbs sampler}
 
