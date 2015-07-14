@@ -16,6 +16,11 @@
 #' @param basis basis type; options are "bs" for b-splines and "pbs" for periodic
 #' b-splines
 #' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
+#' @param sigma optional covariance matrix used in GLS; if \code{NULL}, OLS will be
+#' used to estimated fixed effects, and the covariance matrix will be estimated from
+#' the residuals.
+#' @param CI.type Indicates CI type for coefficient functions; options are "pointwise" and
+#' "simultaneous"
 #'  
 #' @references
 #' Goldsmith, J., Kitago, T. (Under Review).
@@ -25,10 +30,22 @@
 #' @author Jeff Goldsmith \email{ajg2202@@cumc.columbia.edu}
 #' @importFrom splines bs
 #' @importFrom pbs pbs
-#' @importFrom refund fpca.sc
 #' @export
 #' 
-gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL, verbose = TRUE){
+#' @examples
+#' 
+#' library(refund)
+#' library(dplyr)
+#' 
+#' data(DTI)
+#' DTI = subset(DTI, select = c(cca, case, pasat))
+#' DTI = DTI[complete.cases(DTI),]
+#' DTI$gender = factor(sample(c("male","female"), dim(DTI)[1], replace = TRUE))
+#' DTI$status = factor(sample(c("RRMS", "SPMS", "PPMS"), dim(DTI)[1], replace = TRUE))
+#' 
+#' fosr.dti = fosr_gls(cca ~ pasat * gender + status, data = DTI)
+#' 
+gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL, verbose = TRUE, CI.type = "pointwise"){
   
   # not used now but may need this later
   call <- match.call()
@@ -141,8 +158,16 @@ gls_cs = function(formula, data=NULL, Kt=5, basis = "bs", sigma = NULL, verbose 
     a = Kt*p.cur-(Kt-1)
     b = Kt*p.cur
     cov.cur = Theta %*% cov[a:b,a:b] %*%t(Theta)
-    beta.UB[p.cur,] = beta.hat[p.cur,] + 1.96 * sqrt(diag(cov.cur))
-    beta.LB[p.cur,] = beta.hat[p.cur,] - 1.96 * sqrt(diag(cov.cur))
+    if(CI.type == "pointwise"){
+      beta.UB[p.cur,] = beta.hat[p.cur,] + 1.96 * sqrt(diag(cov.cur))
+      beta.LB[p.cur,] = beta.hat[p.cur,] - 1.96 * sqrt(diag(cov.cur))
+    } else if(CI.type == "simultaneous") {
+      norm.samp = mvrnorm(2500, mu = rep(0, D), Sigma = cov.cur)/
+        matrix(sqrt(diag(cov.cur)), nrow = 2500, ncol = D, byrow = TRUE)
+      crit.val = quantile(apply(abs(norm.samp), 1, max), .95)    
+      beta.UB[p.cur,] = beta.hat[p.cur,] + crit.val * sqrt(diag(cov.cur))
+      beta.LB[p.cur,] = beta.hat[p.cur,] - crit.val * sqrt(diag(cov.cur))
+    }
     wald.val[p.cur] = Bx[,p.cur] %*% solve(cov[a:b,a:b]) %*% Bx[,p.cur]
   }
   

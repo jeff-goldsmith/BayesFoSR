@@ -5,7 +5,7 @@
 \title{Cross-sectional FoSR using GLS}
 \usage{
 gls_cs(formula, data = NULL, Kt = 5, basis = "bs", sigma = NULL,
-  verbose = TRUE)
+  verbose = TRUE, CI.type = "pointwise")
 }
 \arguments{
 \item{formula}{a formula indicating the structure of the proposed model.}
@@ -20,7 +20,14 @@ called.}
 \item{basis}{basis type; options are "bs" for b-splines and "pbs" for periodic
 b-splines}
 
+\item{sigma}{optional covariance matrix used in GLS; if \code{NULL}, OLS will be
+used to estimated fixed effects, and the covariance matrix will be estimated from
+the residuals.}
+
 \item{verbose}{logical defaulting to \code{TRUE} -- should updates on progress be printed?}
+
+\item{CI.type}{Indicates CI type for coefficient functions; options are "pointwise" and
+"simultaneous"}
 }
 \description{
 Fitting function for function-on-scalar regression for cross-sectional data.
@@ -29,6 +36,18 @@ spline coefficients is estimated; second, the residual covariance is estimated
 using an FPC decomposition of the OLS residual curves; finally, a GLS estimate
 of spline coefficients is estimated. Although this is in the `BayesFoSR` package,
 there is nothing Bayesian about this FoSR.
+}
+\examples{
+library(refund)
+library(dplyr)
+
+data(DTI)
+DTI = subset(DTI, select = c(cca, case, pasat))
+DTI = DTI[complete.cases(DTI),]
+DTI$gender = factor(sample(c("male","female"), dim(DTI)[1], replace = TRUE))
+DTI$status = factor(sample(c("RRMS", "SPMS", "PPMS"), dim(DTI)[1], replace = TRUE))
+
+fosr.dti = fosr_gls(cca ~ pasat * gender + status, data = DTI)
 }
 \author{
 Jeff Goldsmith \email{ajg2202@cumc.columbia.edu}
