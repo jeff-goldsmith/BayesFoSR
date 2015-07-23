@@ -27,12 +27,17 @@ zeroth-derivative penalty (alpha = 0 is all second-derivative penalty)}
 \item{max.iter}{maximum number of interations of VB algorithm}
 
 \item{Aw}{hyperparameter for inverse gamma controlling variance of spline terms
-for population-level effects}
+for population-level effects; if \code{NULL}, defaults to \code{Kt/2}.}
 
 \item{Bw}{hyperparameter for inverse gamma controlling variance of spline terms
-for population-level effects}
+for population-level effects; if \code{NULL}, defaults to
+1/2 tr(mu.q.beta %*% P.inv %*% mu.q.beta) where mu.q.beta is based on a OLS fit
+of the model}
 
-\item{v}{hyperparameter for inverse Wishart prior on residual covariance}
+\item{v}{hyperparameter for inverse Wishart prior on residual covariance; if \code{NULL},
+Psi defaults to an FPCA decomposition of the residual covariance in which residuals are
+estimated based on an OLS fit of the model (note the "nugget effect" on this covariance
+is assumed to be constant over the time domain).}
 }
 \description{
 Fitting function for function-on-scalar regression for cross-sectional data.

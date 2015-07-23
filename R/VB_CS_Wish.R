@@ -15,10 +15,15 @@
 #' @param min.iter minimum number of interations of VB algorithm
 #' @param max.iter maximum number of interations of VB algorithm
 #' @param Aw hyperparameter for inverse gamma controlling variance of spline terms
-#' for population-level effects
+#' for population-level effects; if \code{NULL}, defaults to \code{Kt/2}.
 #' @param Bw hyperparameter for inverse gamma controlling variance of spline terms
-#' for population-level effects
-#' @param v hyperparameter for inverse Wishart prior on residual covariance
+#' for population-level effects; if \code{NULL}, defaults to 
+#' 1/2 tr(mu.q.beta %*% P.inv %*% mu.q.beta) where mu.q.beta is based on a OLS fit 
+#' of the model
+#' @param v hyperparameter for inverse Wishart prior on residual covariance; if \code{NULL},
+#' Psi defaults to an FPCA decomposition of the residual covariance in which residuals are 
+#' estimated based on an OLS fit of the model (note the "nugget effect" on this covariance
+#' is assumed to be constant over the time domain).
 #' @param verbose logical defaulting to \code{TRUE} -- should updates on progress be printed?
 #' 
 #' @references
@@ -37,24 +42,24 @@ vb_cs_wish = function(formula, data=NULL, verbose = TRUE, Kt=5, alpha = .1, min.
   # not used now but may need this later
   call <- match.call()
   
-  tf <- terms.formula(formula, specials = "re")
+  tf <- terms.formula(formula, specials = "re.fosr")
   trmstrings <- attr(tf, "term.labels")
   specials <- attr(tf, "specials")    # if there are no random effects this will be NULL
-  where.re <-specials$re - 1
+  where.re.fosr <-specials$re.fosr - 1
   
   # gets matrix of fixed and random effects
-  if(length(where.re)!=0){
-    mf_fixed <- model.frame(tf[-where.re], data = data)
-    formula = tf[-where.re]
+  if(length(where.re.fosr)!=0){
+    mf_fixed <- model.frame(tf[-where.re.fosr], data = data)
+    formula = tf[-where.re.fosr]
     
     # get random effects matrix
     responsename <- attr(tf, "variables")[2][[1]]
-    REs = eval(parse(text=attr(tf[where.re], "term.labels")))
+    REs = eval(parse(text=attr(tf[where.re.fosr], "term.labels")))
     
     # set up dataframe if data = NULL
     formula2 <- paste(responsename, "~", REs[[1]],sep = "")
     newfrml <- paste(responsename, "~", REs[[2]],sep = "")
-    newtrmstrings <- attr(tf[-where.re], "term.labels")
+    newtrmstrings <- attr(tf[-where.re.fosr], "term.labels")
     
     formula2 <- formula(paste(c(formula2, newtrmstrings), collapse = "+"))
     newfrml <- formula(paste(c(newfrml, newtrmstrings), collapse = "+"))
