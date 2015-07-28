@@ -3,6 +3,8 @@ BayesFoSR
 
 This repository contains code implementing some Bayesian approaches to function-on-scalar regression. The primary function is `bayes_fosr`, which calls other functions depending on model structure and user-selected options.
 
+These functions have been incorporated in the the refund package; any updates will be made there.
+
 ===============
 
 ### Installation
